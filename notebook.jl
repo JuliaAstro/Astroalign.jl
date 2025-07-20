@@ -22,7 +22,7 @@ begin
 	Pkg.activate(Base.current_project())
 
 	# External packages
-	using AstroImages, PlutoPlotly, PlutoUI, PSFModels, Revise, Rotations, Photometry
+	using AstroImages, PlutoPlotly, PlutoUI, PSFModels, Revise, Rotations, Photometry, ImageTransformations, CoordinateTransformations
 	AstroImages.set_cmap!(:cividis)
 
 	# Internal packages
@@ -68,7 +68,7 @@ The available parameters to adjust are:
 
 # ╔═╡ a1cb22fc-e956-4cf7-aafc-0168da23e556
 md"""
-For even more control, each step of the alignment process has an associated API that can be used from Astroalign.jl, which we show in the rest of this notebook.
+For even more control, each step of the alignment process has an associated API that can be used from Astroalign.jl, along with additional parametes returned by `Astroalign.align` which we show in the rest of this notebook.
 """
 
 # ╔═╡ b8323ad8-c26b-4cc7-9891-caa05c128fb1
@@ -146,43 +146,93 @@ md"""
 ## Align -- ✨
 """
 
+# ╔═╡ 2bc269e1-dbe3-4c68-9a30-8c6054bc3a82
+md"""
+### Detect
+
+`astroalign.py` uses [`sep`](https://github.com/quatrope/astroalign/blob/d7463b4ca48fc35f3d86a72343015491cdf20d6a/astroalign.py#L537) under the hood for its source extraction, so we'll use a combination of [`Photometry.extract_sources`](https://juliaastro.org/Photometry/stable/detection/#Photometry.Detection.extract_sources) to pull out the regions around the brightest pixels, and [`PSFModels.fit`](https://juliaastro.org/PSFModels/stable/api/#PSFModels.fit) to just pick out the ones that look like stars (vs. hot pixels, artifacts, etc.).
+
+!!! todo
+	Explore other point source detection algorithms in Julia.
+"""
+
+# ╔═╡ fe518d92-fbfd-4d6f-ba71-0b7b23a73fd7
+md"""
+#### Source extraction
+
+Starting with `extract_sources` with some reasonable defaults wrapped in a convenience `AstroImages.get_sources` function we defined, we get the following candidate `sources` in our first image:
+"""
+
 # ╔═╡ c0063ec1-a52f-4bd2-a4e0-9c218fbe6a72
-const box_size = let
-	w = gcd(size(img_to)...) ÷ 10
-	iseven(w) ? w + 1 : w 
-end
+# const box_size = let
+# 	w = gcd(size(img_to)...) ÷ 10
+# 	iseven(w) ? w + 1 : w 
+# end
 
 # ╔═╡ 14f73b08-3cb6-48c8-9c00-02e53ffc589f
-const ap_radius = 0.6*box_size
+# const ap_radius = 0.6*box_size
+
+# ╔═╡ 00116e4a-8d9d-46dd-b09f-005a19ddf4ee
+img = img_to;
+
+# ╔═╡ fb0efcf4-26d4-4554-a5cf-b1136f5a6c17
+# Sources, background subtracted image, background
+sources, subt, errs = get_sources(img);
+
+# ╔═╡ 8afa31f0-ee57-4628-bedf-dd2b79faef72
+box_size = Astroalign._compute_box_size(img)
+
+# ╔═╡ b3c689bd-1778-4568-96b9-869f2e6a83c0
+ap_radius = 0.6 * box_size
 
 # ╔═╡ 445a0d35-2b49-42cc-8529-176778b0e090
-img_aligned_from, point_map, tfm, ℳ_to, ℳ_from = align(img_to, img_from;
+arr_aligned_from, align_params = align(img_to, img_from;
 	box_size,
 	ap_radius,
 	min_fwhm = first(box_size) ÷ 5,
 	nsigma = 1,
 );
 
-# ╔═╡ a8bb3c7a-5ff8-4742-b2ab-25350e0efc5e
-img = img_to;
-
-# ╔═╡ fb0efcf4-26d4-4554-a5cf-b1136f5a6c17
-# Sources, background subtracted image, background
-sources, subt, errs = get_sources(img; box_size);
-
 # ╔═╡ 07abbeb9-15a4-4086-86ca-093e5475c0db
 aps = CircularAperture.(sources.y, sources.x, ap_radius)
 
+# ╔═╡ c6ef3b26-ccc1-401b-ba9b-88276d4c5067
+md"""
+Since these are just locations of the brightest points in our image, some could be hot pixels or other artifacts. To address this, we can next filter them out by fitting a PSF to each source, and only taking ones that meet a minimum FWHM.
+"""
+
+# ╔═╡ b0ad71b1-3a3c-481b-a08e-2ee558e8e1c5
+md"""
+#### Source characterization
+
+[`Photometry.photometry`](https://juliaastro.org/Photometry/stable/apertures/#Photometry.Aperture.photometry) automatically computes aperture sums and returns them in a nice table for us. We use a [slightly modified version](https://github.com/JuliaAstro/Photometry.jl/pull/74) in Astroalign.jl to also compute some PSF statistics for each source and stores them in `phot`.
+
+!!! note
+	Some PSF models will not converge, but I think that is to be expected for really noisy sources and is probably fine since they won't be included in the final filtered list anyway.
+"""
+
 # ╔═╡ 4e1c0615-d26d-4147-a096-d20940b8046a
-phot = first(get_photometry(img; box_size, ap_radius), N_sources)
+phot_to = first(get_photometry(aps, subt), N_sources)
+
+# ╔═╡ fcb02cf0-4fb5-4e31-bab9-d19a0755def9
+md"""
+In addition to the usual [`Photometry.photometry`](https://juliaastro.org/Photometry/stable/apertures/#Photometry.Aperture.photometry) fields returned, the `aperture_f` field contains a named tuple of computed PSF information that replaces the usual `aperture_sum` field by default:
+
+* `psf_P`: Named tuple of `x` and `y` center, and `fwhm` of fitted PSF relative to its aperture.
+* `psf_model`: The best fit PSF model. Uses a `gaussian` by default.
+* `psf_data`: The underlying intersection array of the data within the aperture being  fit.
+
+!!! todo
+	Allow this to be customized through the `Astroalign.align` interface.
+"""
 
 # ╔═╡ 9109a7a0-4a37-4dca-a923-16a9302556ee
 md"""
-Below is a quick visual check that compares our observed point source with its fitted PSF model:
+Below is a quick visual check that compares our observed point source with its returned fitted PSF model:
 """
 
 # ╔═╡ 3da14f39-9fad-412e-824b-c3db190700aa
-@bind i Slider(eachindex(phot); show_value=x -> "Source $(x)")
+@bind i Slider(eachindex(phot_to); show_value=x -> "Source $(x)")
 
 # ╔═╡ 0083d7bb-07f2-45e6-b4f8-44099ff1a0bf
 # And "truth" fwhms for comparison
@@ -196,15 +246,67 @@ function inspect_psf(phot)
 end
 
 # ╔═╡ 68139ad3-cf00-4286-b9eb-a435dd20aca2
-inspect_psf(phot[i])
+inspect_psf(phot_to[i])
 
-# ╔═╡ 825d7483-18a1-4e9b-88c8-707636b129bd
+# ╔═╡ c73692f2-178d-4b35-badc-e9e682551989
 md"""
-### Match
+Looks to be fitting alright! From here, results can be sorted and filtered as needed. By default, Astrolign.jl sorts from largest to smallest FWHM. We will just use all $(N_sources) sources here to help fill out our search space in the final alignment step next.
 """
 
-# ╔═╡ 733b2b72-ee6d-41f2-bb87-1cf5ad1114f9
+# ╔═╡ 0603752b-5fcc-4e14-ae41-292cc49c6711
+md"""
+### Match
 
+This is the secret sauce: _Beroiz, Cabral, & Sanchez_ use the fact that triangles can be uniquely characterized to match sets of three stars (asterisms) between images. This point-to-point correspondence then gives us everything we need to compute the affine transformation between them.
+
+For this implementation, they use the invariant ``\mathscr M`` (the pair of two independent ratios of a triangle's side lengths, ``L_i``) to define this unique characterization:
+
+```math
+\begin{align}
+&\mathscr M = (L_3/L_2, L_2/L_1), \\
+
+&\text{where}\ L_3 > L_2 > L_1\quad.
+\end{align}
+```
+
+Astroalign.jl accomplishes this in the following steps:
+
+1. Identify up to ``N`` control points in each image (could be less depending on viewing conditions).
+1. Calculate the invariant ``\mathscr M`` for all ``N\choose{3}`` possible combinations of triangles made up of these control points.
+1. Calculate the pairwise distances between them and choose the closest pair. This will be our point-to-point correspondence.
+1. Return the corresponding affine transformation matrix resulting from this matched pair.
+"""
+
+# ╔═╡ 0d4ce3b5-665a-4cc8-8884-90600e99f6ba
+md"""
+!!! todo
+	Add graceful handling of duplicate matches from, e.g., hot pixels that managed to sneak through.
+"""
+
+# ╔═╡ f2720f8e-8df1-4cfe-a21c-59855e646106
+md"""
+#### Step 1: Identify control points
+
+This is performed internally on a per-image basis with the `Astroalign._get_photometry` method, which is summarized in the above steps we used to produce `phot`.
+"""
+
+# ╔═╡ 255cb3ee-2ac4-4b20-8d4f-785ca9400668
+md"""
+#### Step 2: Calculate invariants
+
+This is done internally in `Astroalign.align`, but the computed invariants `ℳᵢ` can be exposed with `Astroalign.triangle_invariants` for plotting and debugging. Below is a plot comparing the compents of the computed invariants for all control points in our `from` and `to` images. Overlapping sections indicates similar triangle between images found by Astroalign.jl.
+"""
+
+# ╔═╡ c46335bc-ae9a-4257-8a85-b4ccb94d1744
+C_to, ℳ_to = triangle_invariants(phot_to)
+
+# ╔═╡ d1d3f995-b901-4aab-86cd-e2d6f2393190
+md"""
+This can also be accessed through the `align_params` named tuple returned by `Astroalign.align` in the [Usage](#Usage) example. We will use this to get the corresponding invariants for our `from` image;
+"""
+
+# ╔═╡ ad82de06-50f8-4e30-80b9-e4821e845162
+(; C_from, ℳ_from) = align_params
 
 # ╔═╡ cdba7937-eea8-409a-b9e3-714e4516486c
 let
@@ -224,6 +326,39 @@ let
 
 	plot([p1, p2], l)
 end
+
+# ╔═╡ dffa0f3c-100f-4916-96c7-90274c0df5f2
+md"""
+#### Step 3: Select nearest
+
+We will select the closest match next to define our point-to-point correspondence using `Astroalign.find_nearest` with our computed invariants.
+"""
+
+# ╔═╡ dc2a101a-36d7-4402-b543-c576aba987ea
+sol_to, sol_from = find_nearest(C_to, ℳ_to, C_from, ℳ_from)
+
+# ╔═╡ 1150fd19-ece7-4fd0-91db-a4df982d1e8e
+md"""
+#### Step 4. Compute transform
+
+Now that we have our point-to-point correspondence, we can compute our affine transformation needed to produce our aligned image.
+"""
+
+# ╔═╡ 6646cf68-daf0-4a83-b3a8-43415ee8f97f
+point_map = map(sol_to, sol_from) do source_to, source_from
+	[source_from.xcenter, source_from.ycenter] => [source_to.xcenter, source_to.ycenter]
+end
+
+# ╔═╡ 9db16b0e-1e1e-40a5-b7f4-56f819f4e0b1
+tfm = kabsch(last.(point_map) => first.(point_map); scale=false)
+
+# ╔═╡ 3779aed1-a02d-4370-8d56-37a2a5d374bf
+md"""
+We can now hand off this transformation to an image transformation library like `JuliaAstroImages.ImageTransformations` to view our final results. This should match our results returned by `Astroalign.align` in the [Usage](#Usage) example.
+"""
+
+# ╔═╡ 7990c8be-9425-47d0-a913-9e2bb4fbefd1
+img_aligned_from = shareheader(img_from, warp(img_from, tfm, axes(img_to)));
 
 # ╔═╡ c485cd62-f315-44e8-88bd-e97318c32923
 md"""
@@ -328,13 +463,13 @@ function plot_pair(img₁, img₂; column_titles=["img_to", "img_from"])
 end
 
 # ╔═╡ 8769216b-00d4-44bd-97fd-7aa89cf19c23
-plot_pair(img_to, AstroImage(img_aligned_from))
+plot_pair(img_to, AstroImage(arr_aligned_from))
 
 # ╔═╡ f128f050-b716-4a79-8bb6-640708d1bc88
 plot_pair(img_to, img_from)
 
 # ╔═╡ 066210ea-b5b3-4f73-8fc1-503625fc32ce
-plot_pair(img_to, AstroImage(img_aligned_from))
+plot_pair(img_to, img_aligned_from)
 
 # ╔═╡ Cell order:
 # ╟─9e130a37-1073-4d0f-860a-0ec8d164dde1
@@ -359,22 +494,42 @@ plot_pair(img_to, AstroImage(img_aligned_from))
 # ╠═379aab23-f25b-41a6-ab89-a07058319306
 # ╠═f128f050-b716-4a79-8bb6-640708d1bc88
 # ╟─b51e47f6-af8e-478a-a716-af74e33c9e99
-# ╠═a2ed7b77-1277-41a3-8c29-a9814b124d09
+# ╟─a2ed7b77-1277-41a3-8c29-a9814b124d09
+# ╟─2bc269e1-dbe3-4c68-9a30-8c6054bc3a82
+# ╟─fe518d92-fbfd-4d6f-ba71-0b7b23a73fd7
 # ╠═c0063ec1-a52f-4bd2-a4e0-9c218fbe6a72
 # ╠═14f73b08-3cb6-48c8-9c00-02e53ffc589f
-# ╠═a8bb3c7a-5ff8-4742-b2ab-25350e0efc5e
+# ╠═00116e4a-8d9d-46dd-b09f-005a19ddf4ee
 # ╠═fb0efcf4-26d4-4554-a5cf-b1136f5a6c17
+# ╠═8afa31f0-ee57-4628-bedf-dd2b79faef72
+# ╠═b3c689bd-1778-4568-96b9-869f2e6a83c0
 # ╠═07abbeb9-15a4-4086-86ca-093e5475c0db
 # ╟─ada7cfc1-43a6-4469-8d23-7cbe37f22301
+# ╟─c6ef3b26-ccc1-401b-ba9b-88276d4c5067
+# ╟─b0ad71b1-3a3c-481b-a08e-2ee558e8e1c5
 # ╠═4e1c0615-d26d-4147-a096-d20940b8046a
+# ╟─fcb02cf0-4fb5-4e31-bab9-d19a0755def9
 # ╟─9109a7a0-4a37-4dca-a923-16a9302556ee
 # ╠═3da14f39-9fad-412e-824b-c3db190700aa
 # ╠═68139ad3-cf00-4286-b9eb-a435dd20aca2
 # ╠═0083d7bb-07f2-45e6-b4f8-44099ff1a0bf
-# ╟─35befaff-e36c-4741-b28f-3589afe596cd
-# ╟─825d7483-18a1-4e9b-88c8-707636b129bd
-# ╠═733b2b72-ee6d-41f2-bb87-1cf5ad1114f9
+# ╠═35befaff-e36c-4741-b28f-3589afe596cd
+# ╟─c73692f2-178d-4b35-badc-e9e682551989
+# ╟─0603752b-5fcc-4e14-ae41-292cc49c6711
+# ╟─0d4ce3b5-665a-4cc8-8884-90600e99f6ba
+# ╟─f2720f8e-8df1-4cfe-a21c-59855e646106
+# ╟─255cb3ee-2ac4-4b20-8d4f-785ca9400668
 # ╟─cdba7937-eea8-409a-b9e3-714e4516486c
+# ╠═c46335bc-ae9a-4257-8a85-b4ccb94d1744
+# ╟─d1d3f995-b901-4aab-86cd-e2d6f2393190
+# ╠═ad82de06-50f8-4e30-80b9-e4821e845162
+# ╟─dffa0f3c-100f-4916-96c7-90274c0df5f2
+# ╠═dc2a101a-36d7-4402-b543-c576aba987ea
+# ╟─1150fd19-ece7-4fd0-91db-a4df982d1e8e
+# ╠═6646cf68-daf0-4a83-b3a8-43415ee8f97f
+# ╠═9db16b0e-1e1e-40a5-b7f4-56f819f4e0b1
+# ╟─3779aed1-a02d-4370-8d56-37a2a5d374bf
+# ╠═7990c8be-9425-47d0-a913-9e2bb4fbefd1
 # ╟─066210ea-b5b3-4f73-8fc1-503625fc32ce
 # ╟─c485cd62-f315-44e8-88bd-e97318c32923
 # ╟─1cf184a4-ec99-4cd2-8559-5d52b41ec629

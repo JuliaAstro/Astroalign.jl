@@ -13,11 +13,11 @@ using Photometry: estimate_background,
                   PeakMesh
 using PSFModels: gaussian, fit
 
-export align, get_photometry, get_sources
+export align, find_nearest, get_photometry, get_sources, triangle_invariants
 
 function get_sources(img; box_size = nothing, nsigma = 1)
     if isnothing(box_size)
-        box_size = _compute_box_size(img_to)
+        box_size = _compute_box_size(img)
     end
 
     # Background subtract `img`
@@ -37,7 +37,6 @@ end
 function fit_psf(img_ap; fwhm=nothing, kernel=gaussian)
     if isnothing(fwhm)
         fwhm = _compute_box_size(img_ap)
-        @debug fwhm
     end
 
     # Normalize
@@ -54,7 +53,10 @@ end
 # Optional user-facing manual aperture method
 function get_photometry(aps, subt; f = fit_psf, sort_fwhm = true)
     phot = photometry(aps, subt; f)
-    sort_fwhm && sort!(phot; by = x -> x.aperture_f.psf_P.fwhm, rev = true)
+    if f == fit_psf
+        sort_fwhm && sort!(phot; by = x -> x.aperture_f.psf_P.fwhm, rev = true)
+    end
+    return phot
 end
 
 # Internal function used by `align`
@@ -71,16 +73,27 @@ function _get_photometry(img, box_size, ap_radius, min_fwhm, nsigma)
     end
 end
 
-function triangle_invariants(C)
-    map(C) do (pa, pb, pc)
+function triangle_invariants(phot)
+    C = combinations(phot, 3)
+    ℳ = map(C) do (pa, pb, pc)
         a, b, c = (
             (pa.ycenter, pa.xcenter),
             (pb.ycenter, pb.xcenter),
             (pc.ycenter, pc.xcenter),
         )
         Ls = sort!([euclidean(a, b), euclidean(b, c), euclidean(a, c)])
-        ℳ = (Ls[3] / Ls[2], Ls[2] / Ls[1])
+        (Ls[3] / Ls[2], Ls[2] / Ls[1])
     end |> stack
+    return C, ℳ
+end
+
+function find_nearest(C_to, ℳ_to, C_from, ℳ_from)
+    idxs, dists = nn(KDTree(ℳ_to), ℳ_from)
+    idx_from = argmin(dists)
+    idx_to = idxs[idx_from]
+    sol_to = collect(C_to)[idx_to]
+    sol_from = collect(C_from)[idx_from]
+    return sol_to, sol_from
 end
 
 function align(img_to, img_from; box_size = nothing, ap_radius = nothing, min_fwhm = nothing, nsigma = 1)
@@ -101,17 +114,11 @@ function align(img_to, img_from; box_size = nothing, ap_radius = nothing, min_fw
     phot_from = _get_photometry(img_from, box_size, ap_radius, min_fwhm, nsigma)
 
     # Step 2: Calculate invariants
-    C_to = combinations(phot_to, 3)
-    C_from = combinations(phot_from, 3)
-    ℳ_to = triangle_invariants(C_to)
-    ℳ_from = triangle_invariants(C_from)
+    C_to, ℳ_to = triangle_invariants(phot_to)
+    C_from, ℳ_from = triangle_invariants(phot_from)
 
     # Step 3: Select nearest
-    idxs, dists = nn(KDTree(ℳ_to), ℳ_from)
-    idx_from = argmin(dists)
-    idx_to = idxs[idx_from]
-    sol_to = collect(C_to)[idx_to]
-    sol_from = collect(C_from)[idx_from]
+    sol_to, sol_from = find_nearest(C_to, ℳ_to, C_from, ℳ_from)
 
     # Transform
     point_map = map(sol_to, sol_from) do source_to, source_from
@@ -122,10 +129,14 @@ function align(img_to, img_from; box_size = nothing, ap_radius = nothing, min_fw
 
     return (
         warp(img_from, tfm, axes(img_to)),
-        point_map,
-        tfm,
-        ℳ_to,
-        ℳ_from,
+        (;
+            point_map,
+            tfm,
+            C_to,
+            ℳ_to,
+            C_from,
+            ℳ_from,
+       )
     )
 end
 
