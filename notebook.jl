@@ -160,7 +160,7 @@ md"""
 md"""
 #### Source extraction
 
-Starting with `AstroImages.get_source`, we get the following candidate `sources` in our first image:
+Starting with `Astroalign.get_sources`, we get the following candidate `sources` in our first image:
 """
 
 # ╔═╡ 00116e4a-8d9d-46dd-b09f-005a19ddf4ee
