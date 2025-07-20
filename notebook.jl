@@ -51,7 +51,7 @@ Enter [`astroalign.py`](https://github.com/quatrope/astroalign). This really nea
 
 # ╔═╡ 40c14093-3806-401f-aedf-f6435f785eb4
 md"""
-## Usage
+### Usage
 
 Here is a brief usage example aligning `img_from` onto `img_to` with the exported `align` function from Astroalign.jl.
 """
@@ -243,6 +243,11 @@ inspect_psf(phot_to[i])
 md"""
 Looks to be fitting alright! From here, results can be sorted and filtered as needed. By default, Astrolign.jl sorts from largest to smallest FWHM. We will just use all $(N_sources) sources here to help fill out our search space in the final alignment step next.
 """
+
+# ╔═╡ a78eeb75-8db3-45b5-8be6-07333e6693d3
+let
+	align_params
+end
 
 # ╔═╡ 0603752b-5fcc-4e14-ae41-292cc49c6711
 md"""
@@ -499,6 +504,7 @@ plot_pair(img_to, img_aligned_from)
 # ╠═0083d7bb-07f2-45e6-b4f8-44099ff1a0bf
 # ╠═35befaff-e36c-4741-b28f-3589afe596cd
 # ╟─c73692f2-178d-4b35-badc-e9e682551989
+# ╠═a78eeb75-8db3-45b5-8be6-07333e6693d3
 # ╟─0603752b-5fcc-4e14-ae41-292cc49c6711
 # ╟─0d4ce3b5-665a-4cc8-8884-90600e99f6ba
 # ╟─f2720f8e-8df1-4cfe-a21c-59855e646106
