@@ -160,17 +160,8 @@ md"""
 md"""
 #### Source extraction
 
-Starting with `extract_sources` with some reasonable defaults wrapped in a convenience `AstroImages.get_sources` function we defined, we get the following candidate `sources` in our first image:
+Starting with `AstroImages.get_source`, we get the following candidate `sources` in our first image:
 """
-
-# ╔═╡ c0063ec1-a52f-4bd2-a4e0-9c218fbe6a72
-# const box_size = let
-# 	w = gcd(size(img_to)...) ÷ 10
-# 	iseven(w) ? w + 1 : w 
-# end
-
-# ╔═╡ 14f73b08-3cb6-48c8-9c00-02e53ffc589f
-# const ap_radius = 0.6*box_size
 
 # ╔═╡ 00116e4a-8d9d-46dd-b09f-005a19ddf4ee
 img = img_to;
@@ -255,7 +246,7 @@ Looks to be fitting alright! From here, results can be sorted and filtered as ne
 
 # ╔═╡ 0603752b-5fcc-4e14-ae41-292cc49c6711
 md"""
-### Match
+## Match 👥
 
 This is the secret sauce: _Beroiz, Cabral, & Sanchez_ use the fact that triangles can be uniquely characterized to match sets of three stars (asterisms) between images. This point-to-point correspondence then gives us everything we need to compute the affine transformation between them.
 
@@ -285,16 +276,16 @@ md"""
 
 # ╔═╡ f2720f8e-8df1-4cfe-a21c-59855e646106
 md"""
-#### Step 1: Identify control points
+### Step 1: Identify control points
 
 This is performed internally on a per-image basis with the `Astroalign._get_photometry` method, which is summarized in the above steps we used to produce `phot`.
 """
 
 # ╔═╡ 255cb3ee-2ac4-4b20-8d4f-785ca9400668
 md"""
-#### Step 2: Calculate invariants
+### Step 2: Calculate invariants
 
-This is done internally in `Astroalign.align`, but the computed invariants `ℳᵢ` can be exposed with `Astroalign.triangle_invariants` for plotting and debugging. Below is a plot comparing the compents of the computed invariants for all control points in our `from` and `to` images. Overlapping sections indicates similar triangle between images found by Astroalign.jl.
+This is done internally in `Astroalign.align`, but the computed invariants `ℳᵢ` can be exposed with `Astroalign.triangle_invariants` for plotting and debugging. Below is a plot comparing the compents of the computed invariants for all control points in our `from` and `to` images. Overlapping sections indicates similar triangle between images found by Astroalign.jl. Compare to Fig 1. in [Beroiz, M., Cabral, J. B., & Sanchez, B. (2020)](https://arxiv.org/pdf/1909.02946).
 """
 
 # ╔═╡ c46335bc-ae9a-4257-8a85-b4ccb94d1744
@@ -329,7 +320,7 @@ end
 
 # ╔═╡ dffa0f3c-100f-4916-96c7-90274c0df5f2
 md"""
-#### Step 3: Select nearest
+### Step 3: Select nearest
 
 We will select the closest match next to define our point-to-point correspondence using `Astroalign.find_nearest` with our computed invariants.
 """
@@ -339,7 +330,7 @@ sol_to, sol_from = find_nearest(C_to, ℳ_to, C_from, ℳ_from)
 
 # ╔═╡ 1150fd19-ece7-4fd0-91db-a4df982d1e8e
 md"""
-#### Step 4. Compute transform
+### Step 4. Compute transform
 
 Now that we have our point-to-point correspondence, we can compute our affine transformation needed to produce our aligned image.
 """
@@ -360,9 +351,9 @@ We can now hand off this transformation to an image transformation library like 
 # ╔═╡ 7990c8be-9425-47d0-a913-9e2bb4fbefd1
 img_aligned_from = shareheader(img_from, warp(img_from, tfm, axes(img_to)));
 
-# ╔═╡ c485cd62-f315-44e8-88bd-e97318c32923
+# ╔═╡ dd9296e8-0112-41e1-9ccc-4a3e813e2836
 md"""
-## Plotly convenience functions 🖌️
+# 🔧 Notebook setup
 """
 
 # ╔═╡ 1cf184a4-ec99-4cd2-8559-5d52b41ec629
@@ -386,11 +377,6 @@ function circ2(phot; line_color=:lightgreen, r=16)
 		line_color,
 	)
 end
-
-# ╔═╡ dd9296e8-0112-41e1-9ccc-4a3e813e2836
-md"""
-# 🔧 Notebook setup
-"""
 
 # ╔═╡ 5e09f7eb-a4af-4d94-8684-96857e716747
 TableOfContents(; depth=4)
@@ -497,8 +483,6 @@ plot_pair(img_to, img_aligned_from)
 # ╟─a2ed7b77-1277-41a3-8c29-a9814b124d09
 # ╟─2bc269e1-dbe3-4c68-9a30-8c6054bc3a82
 # ╟─fe518d92-fbfd-4d6f-ba71-0b7b23a73fd7
-# ╠═c0063ec1-a52f-4bd2-a4e0-9c218fbe6a72
-# ╠═14f73b08-3cb6-48c8-9c00-02e53ffc589f
 # ╠═00116e4a-8d9d-46dd-b09f-005a19ddf4ee
 # ╠═fb0efcf4-26d4-4554-a5cf-b1136f5a6c17
 # ╠═8afa31f0-ee57-4628-bedf-dd2b79faef72
@@ -531,12 +515,11 @@ plot_pair(img_to, img_aligned_from)
 # ╟─3779aed1-a02d-4370-8d56-37a2a5d374bf
 # ╠═7990c8be-9425-47d0-a913-9e2bb4fbefd1
 # ╟─066210ea-b5b3-4f73-8fc1-503625fc32ce
-# ╟─c485cd62-f315-44e8-88bd-e97318c32923
+# ╟─dd9296e8-0112-41e1-9ccc-4a3e813e2836
 # ╟─1cf184a4-ec99-4cd2-8559-5d52b41ec629
 # ╟─5495dc08-2a7e-49c2-b0ee-7f6a816d584e
 # ╟─b461aadf-f88c-4195-8715-35e1e24a9bb4
 # ╟─de7ff589-99c0-4625-8a10-86aa702d2510
-# ╟─dd9296e8-0112-41e1-9ccc-4a3e813e2836
 # ╠═5e09f7eb-a4af-4d94-8684-96857e716747
 # ╠═d00e04d9-7a12-481b-b3b3-5c1f7e31a1a7
 # ╠═d8d4c414-64a0-11f0-15a3-0d566872a687
