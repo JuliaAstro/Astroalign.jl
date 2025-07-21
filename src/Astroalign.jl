@@ -12,6 +12,7 @@ using Photometry: estimate_background,
                   CircularAperture,
                   PeakMesh
 using PSFModels: gaussian, fit
+using LinearAlgebra: norm
 
 export align, find_nearest, get_photometry, get_sources, triangle_invariants
 
@@ -46,7 +47,7 @@ function fit_psf(img_ap; fwhm=nothing, kernel=gaussian)
     # Fit
     xcen, ycen = Tuple(argmax(psf_data))
     params = (x=ycen, y=xcen, fwhm)
-    psf_P, psf_model = fit(kernel, params, psf_data)
+    psf_P, psf_model = fit(kernel, params, psf_data; x_abstol=2e-6)
     return (; psf_P, psf_model, psf_data)
 end
 
@@ -54,13 +55,13 @@ end
 function get_photometry(aps, subt; f = fit_psf, sort_fwhm = true)
     phot = photometry(aps, subt; f)
     if f == fit_psf
-        sort_fwhm && sort!(phot; by = x -> x.aperture_f.psf_P.fwhm, rev = true)
+        sort_fwhm && sort!(phot; by = x -> norm(x.aperture_f.psf_P.fwhm), rev = true)
     end
     return phot
 end
 
 # Internal function used by `align`
-function _get_photometry(img, box_size, ap_radius, min_fwhm, nsigma)
+function _get_photometry(img, box_size, ap_radius, min_fwhm, nsigma; filter_fwhm=false)
     # Sources, background subtracted image, background
     sources, subt, _ = get_sources(img; box_size, nsigma)
 
@@ -68,9 +69,14 @@ function _get_photometry(img, box_size, ap_radius, min_fwhm, nsigma)
     aps = CircularAperture.(sources.y, sources.x, ap_radius)
 
     phot = get_photometry(aps, subt)
-    return filter!(phot) do phot
-        min_fwhm ≤ phot.aperture_f.psf_P.fwhm
+
+    if filter_fwhm
+        filter!(phot) do source
+            norm(min_fwhm) ≤ norm(source.aperture_f.psf_P.fwhm)
+        end
     end
+
+    return phot
 end
 
 function triangle_invariants(phot)
@@ -102,16 +108,16 @@ function align(img_to, img_from; box_size = nothing, ap_radius = nothing, min_fw
     end
 
     if isnothing(ap_radius)
-        ap_radius = 0.6 * box_size
+        ap_radius = 0.6 * first(box_size)
     end
 
     if isnothing(min_fwhm)
-        min_fwhm = first(box_size) ÷ 5
+        min_fwhm = box_size .÷ 5
     end
 
     # Step 1: Identify control points
-    phot_to = _get_photometry(img_to, box_size, ap_radius, min_fwhm, nsigma)
-    phot_from = _get_photometry(img_from, box_size, ap_radius, min_fwhm, nsigma)
+    phot_to = _get_photometry(img_to, box_size, ap_radius, min_fwhm, nsigma; filter_fwhm=true)
+    phot_from = _get_photometry(img_from, box_size, ap_radius, min_fwhm, nsigma; filter_fwhm=true)
 
     # Step 2: Calculate invariants
     C_to, ℳ_to = triangle_invariants(phot_to)
@@ -142,8 +148,8 @@ end
 
 function _compute_box_size(img)
     w = gcd(size(img)...) ÷ 10
-    box_size = iseven(w) ? w + 1 : w
-    return box_size
+    box_width = iseven(w) ? w + 1 : w
+    return (box_width, box_width)
 end
 
 end # module
