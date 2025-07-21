@@ -20,15 +20,15 @@ end
 begin
 	import Pkg
 	Pkg.activate(Base.current_project())
-
+	Pkg.instantiate()
+	
 	# External packages
-	using AstroImages, PlutoPlotly, PlutoUI, PSFModels, Revise, Rotations, Photometry, ImageTransformations, CoordinateTransformations
+	using AstroImages, PlutoPlotly, PlutoUI, PSFModels, Revise, Rotations, Photometry, ImageTransformations, CoordinateTransformations, LinearAlgebra
+	
 	AstroImages.set_cmap!(:cividis)
 
 	# Internal packages
 	using Astroalign
-
-	Pkg.instantiate()
 end
 
 # ╔═╡ 9e130a37-1073-4d0f-860a-0ec8d164dde1
@@ -53,7 +53,16 @@ Enter [`astroalign.py`](https://github.com/quatrope/astroalign). This really nea
 md"""
 ### Usage
 
-Here is a brief usage example aligning `img_from` onto `img_to` with the exported `align` function from Astroalign.jl.
+Here is a brief usage example aligning `img_from` onto `img_to` with the exported `align` function from Astroalign.jl. Click the button below to generate a new star / galaxy field.
+
+"""
+
+# ╔═╡ e1434564-9864-4ea2-9223-2b3b5aa0093a
+@bind new_data Button("Generate new data")
+
+# ╔═╡ b51e47f6-af8e-478a-a716-af74e33c9e99
+md"""
+In this particular case, `img_from` is rotated clockwise, and shifted vertically upwards and horizontally to the left relative to `img_to` in the above plot. Let's fix it.
 """
 
 # ╔═╡ 58b2a3ab-9a1b-469c-8c2e-2f4e1740d6d5
@@ -61,7 +70,7 @@ md"""
 The available parameters to adjust are:
 
 * `box_size`: The size of the grid cells (in pixels) used to extract point sources. Defaults to a tenth of the GCD of the dimensions of the first image. See [Photometry.jl > Source Detection Algorithms](https://juliaastro.org/Photometry/stable/detection/algs/#Source-Detection-Algorithms) for more.
-* `ap_radius`: The radius of the apertures (in pixel) to place around each point source. Defaults to 60% of the `box_size`. See [Photometry.jl > Aperture Photometry](https://juliaastro.org/Photometry/stable/apertures/) for more.
+* `ap_radius`: The radius of the apertures (in pixel) to place around each point source. Defaults to 60% of `first(box_size)`. See [Photometry.jl > Aperture Photometry](https://juliaastro.org/Photometry/stable/apertures/) for more.
 * `min_fwhm`: The minimum FWHM (in pixels) that an extracted point source must have to be considered as a control point. Defaults to a fifth of the width of the first image. See [PSFModels.jl > Fitting data](https://juliaastro.org/PSFModels/stable/introduction/#Fitting-data) for more.
 * `nsigma`: The number of standard deviations above the estimated background that a source must be to be considered as a control point. Defaults to 1. See [Photometry.jl > Source Detection Algorithms](https://juliaastro.org/Photometry/stable/detection/algs/#Source-Detection-Algorithms) for more.
 """
@@ -91,6 +100,13 @@ md"""
 For simplicity, we'll just create $(N_sources) Gaussian point sources in a $(length(first(img_size))) x $(length(last(img_size))) grid with some noise over the whole image. We can then check our fitted values against these "truth" values at the end.
 """
 
+# ╔═╡ 0ae46a86-dd86-4092-9d34-05f643ec08af
+begin
+	new_data
+	fwhms = [(rand(1:20), rand(1:20)) for _ in 1:N_sources]
+	positions_to = rand(50:20:210, N_sources, 2)
+end;
+
 # ╔═╡ f7639401-1fc9-4cb1-824c-4335a4bb8b25
 # Modified from
 # https://github.com/JuliaAstro/PSFModels.jl/blob/main/test/fitting.jl
@@ -100,46 +116,18 @@ function generate_model(model, params, inds)
 	return psf .+ rand(1000:3000, size(psf))
 end
 
-# ╔═╡ 7d48608c-e97f-4a80-b3f3-19d2b9abedca
-md"""
-### View
-
-Click the button below to generate a new star field.
-"""
-
-# ╔═╡ e1434564-9864-4ea2-9223-2b3b5aa0093a
-@bind new_data Button("Generate new data")
-
-# ╔═╡ 0ae46a86-dd86-4092-9d34-05f643ec08af
-begin
-	new_data
-	fwhms = rand(2:3:20, N_sources)
-	positions_to = rand(20:minimum(fwhms):280, N_sources, 2)
-end
-
-# ╔═╡ 5aa9cd26-6d5d-46df-b76b-61c6b506af86
-positions_from = round.(Int, positions_to * RotMatrix2(π/8) .+  [-80 120])
-
 # ╔═╡ 95531bde-8386-4d51-8c83-ffb796a41e90
-sources_to = map(zip(eachrow(positions_to), fwhms)) do ((x, y), fwhm)
+img_to = map(zip(eachrow(positions_to), fwhms)) do ((x, y), fwhm)
 	generate_model(gaussian, (; x, y, fwhm), img_size)
-end;
+end |> sum |> AstroImage;
 
-# ╔═╡ 81224d9e-df5f-472a-b42b-4b0d3a3e227e
-sources_from = map(zip(eachrow(positions_from), fwhms)) do ((x, y), fwhm)
-	generate_model(gaussian, (; x, y, fwhm), img_size)
-end
-
-# ╔═╡ 379aab23-f25b-41a6-ab89-a07058319306
-img_to, img_from = sum.((sources_to, sources_from)) .|> AstroImage
-
-# ╔═╡ 226863a9-9f6e-40c4-aeb0-452f6a1acd53
-img_to, img_from
-
-# ╔═╡ b51e47f6-af8e-478a-a716-af74e33c9e99
-md"""
-In this particular case, `img_from` is rotated clockwise, and shifted vertically upwards and horizontally to the left relative to `img_to` in the above plot. Let's fix it.
-"""
+# ╔═╡ 5882adec-7591-4d93-98e2-efb81496c54d
+img_from = let
+	tfm = Translation(80, -120) ∘ LinearMap(RotMatrix2(π/8))
+	warp(img_to, tfm, axes(img_to);
+		 fillvalue = ImageTransformations.Periodic(),
+	)
+end |> AstroImage;
 
 # ╔═╡ a2ed7b77-1277-41a3-8c29-a9814b124d09
 md"""
@@ -173,14 +161,17 @@ sources, subt, errs = get_sources(img);
 # ╔═╡ 8afa31f0-ee57-4628-bedf-dd2b79faef72
 box_size = Astroalign._compute_box_size(img)
 
+# ╔═╡ 1cd7c43a-4691-46f6-8b5a-00f499002650
+Astroalign._compute_box_size
+
 # ╔═╡ b3c689bd-1778-4568-96b9-869f2e6a83c0
-ap_radius = 0.6 * box_size
+ap_radius = 0.6 * first(box_size)
 
 # ╔═╡ 445a0d35-2b49-42cc-8529-176778b0e090
 arr_aligned_from, align_params = align(img_to, img_from;
 	box_size,
 	ap_radius,
-	min_fwhm = first(box_size) ÷ 5,
+	min_fwhm = box_size .÷ 5,
 	nsigma = 1,
 );
 
@@ -189,7 +180,7 @@ aps = CircularAperture.(sources.y, sources.x, ap_radius)
 
 # ╔═╡ c6ef3b26-ccc1-401b-ba9b-88276d4c5067
 md"""
-Since these are just locations of the brightest points in our image, some could be hot pixels or other artifacts. To address this, we can next filter them out by fitting a PSF to each source, and only taking ones that meet a minimum FWHM.
+Since these are just locations of the brightest points in our image, some could be hot pixels or other artifacts. To address this, we can next filter them out by fitting a PSF to each source and only taking ones that meet a minimum FWHM.
 """
 
 # ╔═╡ b0ad71b1-3a3c-481b-a08e-2ee558e8e1c5
@@ -203,7 +194,7 @@ md"""
 """
 
 # ╔═╡ 4e1c0615-d26d-4147-a096-d20940b8046a
-phot_to = first(get_photometry(aps, subt), N_sources)
+phot_to = get_photometry(aps, subt)
 
 # ╔═╡ fcb02cf0-4fb5-4e31-bab9-d19a0755def9
 md"""
@@ -227,11 +218,12 @@ Below is a quick visual check that compares our observed point source with its r
 
 # ╔═╡ 0083d7bb-07f2-45e6-b4f8-44099ff1a0bf
 # And "truth" fwhms for comparison
-sort(fwhms; rev=true)
+sort(fwhms; by = norm, rev = true)
 
 # ╔═╡ 35befaff-e36c-4741-b28f-3589afe596cd
 function inspect_psf(phot)
 	psf_data, psf_model = phot.aperture_f.psf_data, phot.aperture_f.psf_model
+	@debug (; phot.xcenter, phot.ycenter)
 	@debug phot.aperture_f.psf_P
 	return AstroImage(psf_data), imview(psf_model.(CartesianIndices(psf_data)))
 end
@@ -243,11 +235,6 @@ inspect_psf(phot_to[i])
 md"""
 Looks to be fitting alright! From here, results can be sorted and filtered as needed. By default, Astrolign.jl sorts from largest to smallest FWHM. We will just use all $(N_sources) sources here to help fill out our search space in the final alignment step next.
 """
-
-# ╔═╡ a78eeb75-8db3-45b5-8be6-07333e6693d3
-let
-	align_params
-end
 
 # ╔═╡ 0603752b-5fcc-4e14-ae41-292cc49c6711
 md"""
@@ -302,7 +289,7 @@ This can also be accessed through the `align_params` named tuple returned by `As
 """
 
 # ╔═╡ ad82de06-50f8-4e30-80b9-e4821e845162
-(; C_from, ℳ_from) = align_params
+(; C_from, ℳ_from) = align_params; C_from, ℳ_from
 
 # ╔═╡ cdba7937-eea8-409a-b9e3-714e4516486c
 let
@@ -323,11 +310,16 @@ let
 	plot([p1, p2], l)
 end
 
+# ╔═╡ 23a1364a-4ba0-42af-93bf-b6f900b9a13d
+md"""
+Note that the number of combinations of triangles in each frame can differ if the number of control points detected in each image is not the same. This can happen when sources drift towards the edge or off of the frame between images. All we need is one match though, which is helped by the additional combinations available.
+"""
+
 # ╔═╡ dffa0f3c-100f-4916-96c7-90274c0df5f2
 md"""
 ### Step 3: Select nearest
 
-We will select the closest match next to define our point-to-point correspondence using `Astroalign.find_nearest` with our computed invariants.
+We will find this closest match next to define our point-to-point correspondence using `Astroalign.find_nearest` with our computed invariants.
 """
 
 # ╔═╡ dc2a101a-36d7-4402-b543-c576aba987ea
@@ -453,11 +445,11 @@ function plot_pair(img₁, img₂; column_titles=["img_to", "img_from"])
 	fig
 end
 
-# ╔═╡ 8769216b-00d4-44bd-97fd-7aa89cf19c23
-plot_pair(img_to, AstroImage(arr_aligned_from))
-
 # ╔═╡ f128f050-b716-4a79-8bb6-640708d1bc88
 plot_pair(img_to, img_from)
+
+# ╔═╡ 8769216b-00d4-44bd-97fd-7aa89cf19c23
+plot_pair(img_to, AstroImage(arr_aligned_from))
 
 # ╔═╡ 066210ea-b5b3-4f73-8fc1-503625fc32ce
 plot_pair(img_to, img_aligned_from)
@@ -466,31 +458,28 @@ plot_pair(img_to, img_aligned_from)
 # ╟─9e130a37-1073-4d0f-860a-0ec8d164dde1
 # ╟─fa1180d4-c1ea-4a1b-8476-0e8d185d5622
 # ╟─40c14093-3806-401f-aedf-f6435f785eb4
-# ╠═226863a9-9f6e-40c4-aeb0-452f6a1acd53
+# ╟─e1434564-9864-4ea2-9223-2b3b5aa0093a
+# ╟─f128f050-b716-4a79-8bb6-640708d1bc88
+# ╟─b51e47f6-af8e-478a-a716-af74e33c9e99
 # ╠═445a0d35-2b49-42cc-8529-176778b0e090
+# ╟─8769216b-00d4-44bd-97fd-7aa89cf19c23
 # ╟─58b2a3ab-9a1b-469c-8c2e-2f4e1740d6d5
-# ╠═8769216b-00d4-44bd-97fd-7aa89cf19c23
 # ╟─a1cb22fc-e956-4cf7-aafc-0168da23e556
 # ╟─b8323ad8-c26b-4cc7-9891-caa05c128fb1
 # ╟─eff56f6e-ab01-4371-a75f-f44bdde7cfd6
 # ╠═dc01eaaa-f1d0-4bc6-884f-778d848918c6
 # ╠═78c0bf28-bb96-4aea-8bf5-5929ef45adc1
 # ╠═0ae46a86-dd86-4092-9d34-05f643ec08af
-# ╠═5aa9cd26-6d5d-46df-b76b-61c6b506af86
 # ╠═95531bde-8386-4d51-8c83-ffb796a41e90
-# ╠═81224d9e-df5f-472a-b42b-4b0d3a3e227e
-# ╠═f7639401-1fc9-4cb1-824c-4335a4bb8b25
-# ╟─7d48608c-e97f-4a80-b3f3-19d2b9abedca
-# ╟─e1434564-9864-4ea2-9223-2b3b5aa0093a
-# ╠═379aab23-f25b-41a6-ab89-a07058319306
-# ╠═f128f050-b716-4a79-8bb6-640708d1bc88
-# ╟─b51e47f6-af8e-478a-a716-af74e33c9e99
+# ╠═5882adec-7591-4d93-98e2-efb81496c54d
+# ╟─f7639401-1fc9-4cb1-824c-4335a4bb8b25
 # ╟─a2ed7b77-1277-41a3-8c29-a9814b124d09
 # ╟─2bc269e1-dbe3-4c68-9a30-8c6054bc3a82
 # ╟─fe518d92-fbfd-4d6f-ba71-0b7b23a73fd7
 # ╠═00116e4a-8d9d-46dd-b09f-005a19ddf4ee
 # ╠═fb0efcf4-26d4-4554-a5cf-b1136f5a6c17
 # ╠═8afa31f0-ee57-4628-bedf-dd2b79faef72
+# ╠═1cd7c43a-4691-46f6-8b5a-00f499002650
 # ╠═b3c689bd-1778-4568-96b9-869f2e6a83c0
 # ╠═07abbeb9-15a4-4086-86ca-093e5475c0db
 # ╟─ada7cfc1-43a6-4469-8d23-7cbe37f22301
@@ -499,12 +488,11 @@ plot_pair(img_to, img_aligned_from)
 # ╠═4e1c0615-d26d-4147-a096-d20940b8046a
 # ╟─fcb02cf0-4fb5-4e31-bab9-d19a0755def9
 # ╟─9109a7a0-4a37-4dca-a923-16a9302556ee
-# ╠═3da14f39-9fad-412e-824b-c3db190700aa
+# ╟─3da14f39-9fad-412e-824b-c3db190700aa
 # ╠═68139ad3-cf00-4286-b9eb-a435dd20aca2
 # ╠═0083d7bb-07f2-45e6-b4f8-44099ff1a0bf
-# ╠═35befaff-e36c-4741-b28f-3589afe596cd
+# ╟─35befaff-e36c-4741-b28f-3589afe596cd
 # ╟─c73692f2-178d-4b35-badc-e9e682551989
-# ╠═a78eeb75-8db3-45b5-8be6-07333e6693d3
 # ╟─0603752b-5fcc-4e14-ae41-292cc49c6711
 # ╟─0d4ce3b5-665a-4cc8-8884-90600e99f6ba
 # ╟─f2720f8e-8df1-4cfe-a21c-59855e646106
@@ -513,6 +501,7 @@ plot_pair(img_to, img_aligned_from)
 # ╠═c46335bc-ae9a-4257-8a85-b4ccb94d1744
 # ╟─d1d3f995-b901-4aab-86cd-e2d6f2393190
 # ╠═ad82de06-50f8-4e30-80b9-e4821e845162
+# ╟─23a1364a-4ba0-42af-93bf-b6f900b9a13d
 # ╟─dffa0f3c-100f-4916-96c7-90274c0df5f2
 # ╠═dc2a101a-36d7-4402-b543-c576aba987ea
 # ╟─1150fd19-ece7-4fd0-91db-a4df982d1e8e
