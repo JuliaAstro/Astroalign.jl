@@ -35,46 +35,40 @@ function get_sources(img; box_size = nothing, nsigma = 1)
     )
 end
 
-function fit_psf(img_ap; fwhm=nothing, kernel=gaussian)
-    if isnothing(fwhm)
-        fwhm = _compute_box_size(img_ap)
-    end
-
+function fit_psf(img_ap)
     # Normalize
     psf_data = collect(Float32, img_ap)
     psf_data ./= maximum(psf_data)
 
-    # Fit
+    # Set params
     xcen, ycen = Tuple(argmax(psf_data))
+    fwhm = _compute_box_size(img_ap)
     params = (x=ycen, y=xcen, fwhm)
-    psf_P, psf_model = fit(kernel, params, psf_data; x_abstol=2e-6)
-    return (; psf_P, psf_model, psf_data)
-end
 
-# Optional user-facing manual aperture method
-function get_photometry(aps, subt; f = fit_psf, sort_fwhm = true)
-    phot = photometry(aps, subt; f)
-    if f == fit_psf
-        sort_fwhm && sort!(phot; by = x -> norm(x.aperture_f.psf_P.fwhm), rev = true)
-    end
-    return phot
+    # Fit
+    psf_params, psf_model = fit(gaussian, params, psf_data; x_abstol=2e-6)
+
+    return (; psf_params, psf_model, psf_data)
 end
 
 # Internal function used by `align`
-function _get_photometry(img, box_size, ap_radius, min_fwhm, nsigma; filter_fwhm=false)
+# Calls to `Photometry.photometry` with reasonable defaults
+function _photometry(img, box_size, ap_radius, min_fwhm, nsigma; filter_fwhm=false)
     # Sources, background subtracted image, background
     sources, subt, _ = get_sources(img; box_size, nsigma)
 
     # Define apertures
     aps = CircularAperture.(sources.y, sources.x, ap_radius)
 
-    phot = get_photometry(aps, subt)
+    phot = photometry(aps, subt; f = fit_psf)
 
     if filter_fwhm
         filter!(phot) do source
-            norm(min_fwhm) ≤ norm(source.aperture_f.psf_P.fwhm)
+            norm(min_fwhm) ≤ norm(source.aperture_f.psf_params.fwhm)
         end
     end
+
+    sort!(phot; by = x -> hypot(x.aperture_f.psf_params.fwhm...), rev = true)
 
     return phot
 end
@@ -116,8 +110,8 @@ function align(img_to, img_from; box_size = nothing, ap_radius = nothing, min_fw
     end
 
     # Step 1: Identify control points
-    phot_to = _get_photometry(img_to, box_size, ap_radius, min_fwhm, nsigma; filter_fwhm=true)
-    phot_from = _get_photometry(img_from, box_size, ap_radius, min_fwhm, nsigma; filter_fwhm=true)
+    phot_to = _photometry(img_to, box_size, ap_radius, min_fwhm, nsigma; filter_fwhm=true)
+    phot_from = _photometry(img_from, box_size, ap_radius, min_fwhm, nsigma; filter_fwhm=true)
 
     # Step 2: Calculate invariants
     C_to, ℳ_to = triangle_invariants(phot_to)

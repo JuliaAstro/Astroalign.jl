@@ -104,7 +104,7 @@ For simplicity, we'll just create $(N_sources) Gaussian point sources in a $(len
 begin
 	new_data
 	fwhms = [(rand(1:20), rand(1:20)) for _ in 1:N_sources]
-	positions_to = rand(50:20:210, N_sources, 2)
+	positions_to = rand(30:12:240, N_sources, 2)
 end;
 
 # ╔═╡ f7639401-1fc9-4cb1-824c-4335a4bb8b25
@@ -194,7 +194,10 @@ md"""
 """
 
 # ╔═╡ 4e1c0615-d26d-4147-a096-d20940b8046a
-phot_to = get_photometry(aps, subt)
+phot_to = let
+	phot = photometry(aps, subt; f=Astroalign.fit_psf)
+	sort!(phot; by = x -> norm(x.aperture_f.psf_params.fwhm), rev = true)
+end
 
 # ╔═╡ fcb02cf0-4fb5-4e31-bab9-d19a0755def9
 md"""
@@ -224,7 +227,7 @@ sort(fwhms; by = norm, rev = true)
 function inspect_psf(phot)
 	psf_data, psf_model = phot.aperture_f.psf_data, phot.aperture_f.psf_model
 	@debug (; phot.xcenter, phot.ycenter)
-	@debug phot.aperture_f.psf_P
+	@debug phot.aperture_f.psf_params
 	return AstroImage(psf_data), imview(psf_model.(CartesianIndices(psf_data)))
 end
 
@@ -491,7 +494,7 @@ plot_pair(img_to, img_aligned_from)
 # ╟─3da14f39-9fad-412e-824b-c3db190700aa
 # ╠═68139ad3-cf00-4286-b9eb-a435dd20aca2
 # ╠═0083d7bb-07f2-45e6-b4f8-44099ff1a0bf
-# ╟─35befaff-e36c-4741-b28f-3589afe596cd
+# ╠═35befaff-e36c-4741-b28f-3589afe596cd
 # ╟─c73692f2-178d-4b35-badc-e9e682551989
 # ╟─0603752b-5fcc-4e14-ae41-292cc49c6711
 # ╟─0d4ce3b5-665a-4cc8-8884-90600e99f6ba
