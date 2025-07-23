@@ -35,32 +35,45 @@ function get_sources(img; box_size = nothing, nsigma = 1)
     )
 end
 
-function fit_psf(img_ap)
+Base.@kwdef struct PSF
+    model = gaussian
+    params = (;)
+    func_kwargs = (;)
+    kwargs = (; x_abstol = 2e-6)
+end
+
+(p::PSF)(img) = fit_psf(img, p)
+
+function fit_psf(img_ap, p)
     # Normalize
     psf_data = collect(Float32, img_ap)
     psf_data ./= maximum(psf_data)
 
     # Set params
-    xcen, ycen = Tuple(argmax(psf_data))
-    fwhm = _compute_box_size(img_ap)
-    params = (x=ycen, y=xcen, fwhm)
+    if isempty(p.params)
+        y, x = Tuple(argmax(psf_data))
+        fwhm = _compute_box_size(img_ap)
+        params = (; x, y, fwhm)
+    else
+        params = p.params
+    end
 
     # Fit
-    psf_params, psf_model = fit(gaussian, params, psf_data; x_abstol=2e-6)
+    psf_params, psf_model = fit(p.model, params, psf_data; func_kwargs=p.func_kwargs, p.kwargs...)
 
     return (; psf_params, psf_model, psf_data)
 end
 
 # Internal function used by `align`
 # Calls to `Photometry.photometry` with reasonable defaults
-function _photometry(img, box_size, ap_radius, min_fwhm, nsigma; filter_fwhm=false)
+function _photometry(img, box_size, ap_radius, min_fwhm, nsigma, f; filter_fwhm)
     # Sources, background subtracted image, background
     sources, subt, _ = get_sources(img; box_size, nsigma)
 
     # Define apertures
     aps = CircularAperture.(sources.y, sources.x, ap_radius)
 
-    phot = photometry(aps, subt; f = fit_psf)
+    phot = photometry(aps, subt; f)
 
     if filter_fwhm
         filter!(phot) do source
@@ -68,7 +81,7 @@ function _photometry(img, box_size, ap_radius, min_fwhm, nsigma; filter_fwhm=fal
         end
     end
 
-    sort!(phot; by = x -> hypot(x.aperture_f.psf_params.fwhm...), rev = true)
+    sort!(phot; by = x -> norm(x.aperture_f.psf_params.fwhm), rev = true)
 
     return phot
 end
@@ -96,7 +109,7 @@ function find_nearest(C_to, ℳ_to, C_from, ℳ_from)
     return sol_to, sol_from
 end
 
-function align(img_to, img_from; box_size = nothing, ap_radius = nothing, min_fwhm = nothing, nsigma = 1)
+function align(img_to, img_from; box_size = nothing, ap_radius = nothing, f = PSF(), min_fwhm = nothing, nsigma = 1)
     if isnothing(box_size)
         box_size = _compute_box_size(img_to)
     end
@@ -110,8 +123,8 @@ function align(img_to, img_from; box_size = nothing, ap_radius = nothing, min_fw
     end
 
     # Step 1: Identify control points
-    phot_to = _photometry(img_to, box_size, ap_radius, min_fwhm, nsigma; filter_fwhm=true)
-    phot_from = _photometry(img_from, box_size, ap_radius, min_fwhm, nsigma; filter_fwhm=true)
+    phot_to = _photometry(img_to, box_size, ap_radius, min_fwhm, nsigma, f; filter_fwhm=true)
+    phot_from = _photometry(img_from, box_size, ap_radius, min_fwhm, nsigma, f; filter_fwhm=true)
 
     # Step 2: Calculate invariants
     C_to, ℳ_to = triangle_invariants(phot_to)

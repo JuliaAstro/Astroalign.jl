@@ -73,6 +73,7 @@ The available parameters to adjust are:
 * `ap_radius`: The radius of the apertures (in pixel) to place around each point source. Defaults to 60% of `first(box_size)`. See [Photometry.jl > Aperture Photometry](https://juliaastro.org/Photometry/stable/apertures/) for more.
 * `min_fwhm`: The minimum FWHM (in pixels) that an extracted point source must have to be considered as a control point. Defaults to a fifth of the width of the first image. See [PSFModels.jl > Fitting data](https://juliaastro.org/PSFModels/stable/introduction/#Fitting-data) for more.
 * `nsigma`: The number of standard deviations above the estimated background that a source must be to be considered as a control point. Defaults to 1. See [Photometry.jl > Source Detection Algorithms](https://juliaastro.org/Photometry/stable/detection/algs/#Source-Detection-Algorithms) for more.
+* `f`: The function to compute within each aperture. Defaults to a 2D Gaussiam fitted to the aperture center. See the [Source characterization](#Source-characterization) section of this notebook for more.
 """
 
 # ╔═╡ a1cb22fc-e956-4cf7-aafc-0168da23e556
@@ -173,6 +174,7 @@ arr_aligned_from, align_params = align(img_to, img_from;
 	ap_radius,
 	min_fwhm = box_size .÷ 5,
 	nsigma = 1,
+	f = Astroalign.PSF(),
 );
 
 # ╔═╡ 07abbeb9-15a4-4086-86ca-093e5475c0db
@@ -195,20 +197,19 @@ md"""
 
 # ╔═╡ 4e1c0615-d26d-4147-a096-d20940b8046a
 phot_to = let
-	phot = photometry(aps, subt; f=Astroalign.fit_psf)
+	phot = photometry(aps, subt; f = Astroalign.PSF())
 	sort!(phot; by = x -> norm(x.aperture_f.psf_params.fwhm), rev = true)
 end
 
 # ╔═╡ fcb02cf0-4fb5-4e31-bab9-d19a0755def9
 md"""
-In addition to the usual [`Photometry.photometry`](https://juliaastro.org/Photometry/stable/apertures/#Photometry.Aperture.photometry) fields returned, the `aperture_f` field contains a named tuple of computed PSF information that replaces the usual `aperture_sum` field by default:
+In addition to the usual [`Photometry.photometry`](https://juliaastro.org/Photometry/stable/apertures/#Photometry.Aperture.photometry) fields returned, the `aperture_f` field contains a named tuple of computed PSF information by default with the `Astroalign.PSF()` callable:
 
 * `psf_P`: Named tuple of `x` and `y` center, and `fwhm` of fitted PSF relative to its aperture.
 * `psf_model`: The best fit PSF model. Uses a `gaussian` by default.
 * `psf_data`: The underlying intersection array of the data within the aperture being  fit.
 
-!!! todo
-	Allow this to be customized through the `Astroalign.align` interface.
+The same parameters passed to `Photometry.fit` can also be passed to `Astroalign.PSF()`.
 """
 
 # ╔═╡ 9109a7a0-4a37-4dca-a923-16a9302556ee
@@ -464,8 +465,8 @@ plot_pair(img_to, img_aligned_from)
 # ╟─e1434564-9864-4ea2-9223-2b3b5aa0093a
 # ╟─f128f050-b716-4a79-8bb6-640708d1bc88
 # ╟─b51e47f6-af8e-478a-a716-af74e33c9e99
-# ╠═445a0d35-2b49-42cc-8529-176778b0e090
 # ╟─8769216b-00d4-44bd-97fd-7aa89cf19c23
+# ╠═445a0d35-2b49-42cc-8529-176778b0e090
 # ╟─58b2a3ab-9a1b-469c-8c2e-2f4e1740d6d5
 # ╟─a1cb22fc-e956-4cf7-aafc-0168da23e556
 # ╟─b8323ad8-c26b-4cc7-9891-caa05c128fb1
@@ -494,7 +495,7 @@ plot_pair(img_to, img_aligned_from)
 # ╟─3da14f39-9fad-412e-824b-c3db190700aa
 # ╠═68139ad3-cf00-4286-b9eb-a435dd20aca2
 # ╠═0083d7bb-07f2-45e6-b4f8-44099ff1a0bf
-# ╠═35befaff-e36c-4741-b28f-3589afe596cd
+# ╟─35befaff-e36c-4741-b28f-3589afe596cd
 # ╟─c73692f2-178d-4b35-badc-e9e682551989
 # ╟─0603752b-5fcc-4e14-ae41-292cc49c6711
 # ╟─0d4ce3b5-665a-4cc8-8884-90600e99f6ba
