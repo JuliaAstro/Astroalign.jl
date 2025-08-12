@@ -12,7 +12,6 @@ using Photometry: estimate_background,
                   CircularAperture,
                   PeakMesh
 using PSFModels: gaussian, fit
-using LinearAlgebra: norm
 
 export align, find_nearest, get_photometry, get_sources, triangle_invariants
 
@@ -77,11 +76,11 @@ function _photometry(img, box_size, ap_radius, min_fwhm, nsigma, f; filter_fwhm)
 
     if filter_fwhm
         filter!(phot) do source
-            norm(min_fwhm) ≤ norm(source.aperture_f.psf_params.fwhm)
+            hypot(min_fwhm...) ≤ hypot(source.aperture_f.psf_params.fwhm...)
         end
     end
 
-    sort!(phot; by = x -> norm(x.aperture_f.psf_params.fwhm), rev = true)
+    sort!(phot; by = x -> hypot(x.aperture_f.psf_params.fwhm...), rev = true)
 
     return phot
 end
