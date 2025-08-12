@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.20.13
+# v0.20.15
 
 using Markdown
 using InteractiveUtils
@@ -329,6 +329,16 @@ We will find this closest match next to define our point-to-point correspondence
 # ╔═╡ dc2a101a-36d7-4402-b543-c576aba987ea
 sol_to, sol_from = find_nearest(C_to, ℳ_to, C_from, ℳ_from)
 
+# ╔═╡ bd2d9faf-7e0c-4a46-91e9-b3984dd3090e
+aps_sol_to = map(sol_to) do sol
+	CircularAperture(sol.xcenter, sol.ycenter, ap_radius)
+end
+
+# ╔═╡ 7f0b20db-e369-4e6a-aa5e-7df949791915
+aps_sol_from = map(sol_from) do sol
+	CircularAperture(sol.xcenter, sol.ycenter, ap_radius)
+end
+
 # ╔═╡ 1150fd19-ece7-4fd0-91db-a4df982d1e8e
 md"""
 ### Step 4. Compute transform
@@ -358,7 +368,7 @@ md"""
 """
 
 # ╔═╡ 1cf184a4-ec99-4cd2-8559-5d52b41ec629
-function circ(ap; line_color=:lightgreen)
+function circ(ap, line_color=:lightgreen)
 	circle(
 		ap.x - ap.r, # x_min
 		ap.x + ap.r, # x_max
@@ -420,6 +430,17 @@ let
 	p
 end
 
+# ╔═╡ 05537e5b-347a-4198-80e9-7eeed85b08ca
+ let
+	l = Layout(;
+		xaxis = attr(title="X"),
+		yaxis = attr(title="Y"),
+	)
+	p = plot(trace_hm(img_to; colorbar_x=1.0), l)
+	relayout!(p; shapes=circ.(aps_sol_to, [:magenta, :lightgreen, :blue]))
+	p
+end
+
 # ╔═╡ de7ff589-99c0-4625-8a10-86aa702d2510
 function plot_pair(img₁, img₂; column_titles=["img_to", "img_from"])
 	# Set up some subplots
@@ -435,8 +456,8 @@ function plot_pair(img₁, img₂; column_titles=["img_to", "img_from"])
 	update_annotations!(fig, font_size=14)
 	
 	# Manually place the colorbars so they don't clash
-	add_trace!(fig, trace_hm(img₁; colorbar_x=0.45), col=1)
-	add_trace!(fig, trace_hm(img₂; colorbar_x=1), col=2)
+	p1 = add_trace!(fig, trace_hm(img₁; colorbar_x=0.45), col=1)
+	p2 = add_trace!(fig, trace_hm(img₂; colorbar_x=1), col=2)
 
 	# Keep the images true to size
 	update_xaxes!(fig, matches="x", scaleanchor=:y, title="X (pixels)")
@@ -446,7 +467,7 @@ function plot_pair(img₁, img₂; column_titles=["img_to", "img_from"])
 	relayout!(fig, Layout(yaxis_title="Y (pixels)"), font_size=10, template="plotly_white", margin=attr(t=20), uirevision=1)
 
 	# Display
-	fig
+	return fig
 end
 
 # ╔═╡ f128f050-b716-4a79-8bb6-640708d1bc88
@@ -456,7 +477,7 @@ plot_pair(img_to, img_from)
 plot_pair(img_to, AstroImage(arr_aligned_from))
 
 # ╔═╡ 066210ea-b5b3-4f73-8fc1-503625fc32ce
-plot_pair(img_to, img_aligned_from)
+fig = plot_pair(img_to, img_aligned_from)
 
 # ╔═╡ Cell order:
 # ╟─9e130a37-1073-4d0f-860a-0ec8d164dde1
@@ -508,12 +529,15 @@ plot_pair(img_to, img_aligned_from)
 # ╟─23a1364a-4ba0-42af-93bf-b6f900b9a13d
 # ╟─dffa0f3c-100f-4916-96c7-90274c0df5f2
 # ╠═dc2a101a-36d7-4402-b543-c576aba987ea
+# ╠═bd2d9faf-7e0c-4a46-91e9-b3984dd3090e
+# ╠═7f0b20db-e369-4e6a-aa5e-7df949791915
+# ╟─05537e5b-347a-4198-80e9-7eeed85b08ca
 # ╟─1150fd19-ece7-4fd0-91db-a4df982d1e8e
 # ╠═6646cf68-daf0-4a83-b3a8-43415ee8f97f
 # ╠═9db16b0e-1e1e-40a5-b7f4-56f819f4e0b1
 # ╟─3779aed1-a02d-4370-8d56-37a2a5d374bf
 # ╠═7990c8be-9425-47d0-a913-9e2bb4fbefd1
-# ╟─066210ea-b5b3-4f73-8fc1-503625fc32ce
+# ╠═066210ea-b5b3-4f73-8fc1-503625fc32ce
 # ╟─dd9296e8-0112-41e1-9ccc-4a3e813e2836
 # ╟─1cf184a4-ec99-4cd2-8559-5d52b41ec629
 # ╟─5495dc08-2a7e-49c2-b0ee-7f6a816d584e
