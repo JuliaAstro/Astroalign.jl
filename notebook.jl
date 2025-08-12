@@ -23,7 +23,7 @@ begin
 	Pkg.instantiate()
 	
 	# External packages
-	using AstroImages, PlutoPlotly, PlutoUI, PSFModels, Revise, Rotations, Photometry, ImageTransformations, CoordinateTransformations, LinearAlgebra
+	using AstroImages, PlutoPlotly, PlutoUI, PSFModels, Revise, Rotations, Photometry, ImageTransformations, CoordinateTransformations
 	
 	AstroImages.set_cmap!(:cividis)
 
@@ -198,7 +198,7 @@ md"""
 # ╔═╡ 4e1c0615-d26d-4147-a096-d20940b8046a
 phot_to = let
 	phot = photometry(aps, subt; f = Astroalign.PSF())
-	sort!(phot; by = x -> norm(x.aperture_f.psf_params.fwhm), rev = true)
+	sort!(phot; by = x -> hypot(x.aperture_f.psf_params.fwhm...), rev = true)
 end
 
 # ╔═╡ fcb02cf0-4fb5-4e31-bab9-d19a0755def9
@@ -222,7 +222,7 @@ Below is a quick visual check that compares our observed point source with its r
 
 # ╔═╡ 0083d7bb-07f2-45e6-b4f8-44099ff1a0bf
 # And "truth" fwhms for comparison
-sort(fwhms; by = norm, rev = true)
+sort(fwhms; by = x -> hypot(x...), rev = true)
 
 # ╔═╡ 35befaff-e36c-4741-b28f-3589afe596cd
 function inspect_psf(phot)
