@@ -1,3 +1,6 @@
+using Revise
+Revise.revise()
+
 using Documenter, DocumenterInterLinks
 using Documenter.Remotes: GitHub
 using Astroalign

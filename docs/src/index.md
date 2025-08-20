@@ -1,5 +1,37 @@
+# Astroalign.jl
+
+[badges]
+
+Align astronomical images of point sources. Based on the [`astroalign`](https://github.com/quatrope/astroalign) Python package.
+
+Credit: [_Beroiz, M., Cabral, J. B., & Sanchez, B. (2020)_](https://ui.adsabs.harvard.edu/abs/2020A%26C....3200384B/abstract)
+
+!!! warning
+    This package is still in the experimental stage. If you notice an issue, please feel free to [let us know](@ref Contributing)!
+
+## Installation
+
+```julia-repl
+pkg> add Astroalign
+```
+
+## Getting Started
+
+```julia
+img_aligned, params = align(img_to, img_from)
+```
+
+See the accompanying Pluto.jl notebook for more.
+
+## Contributing
+
+[Issues](https://github.com/JuliaAstro/Astroalign.jl/issues) and [pull requests](https://github.com/JuliaAstro/Astroalign.jl/pulls) welcome.
+
 # API / Reference
 
-```@autodocs
-Modules = [Astroalign]
+```@docs
+Astroalign.align
+Astroalign.find_nearest
+Astroalign.get_sources
+Astroalign.triangle_invariants
 ```

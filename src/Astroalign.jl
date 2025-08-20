@@ -13,7 +13,7 @@ using Photometry: estimate_background,
                   PeakMesh
 using PSFModels: gaussian, fit
 
-export align, find_nearest, get_photometry, get_sources, triangle_invariants
+export align, find_nearest, get_sources, triangle_invariants
 
 
 """
@@ -23,11 +23,7 @@ Extract candidate sources in `img` according to [`Photometry.Detection.extract_s
 
 TODO: Pass more options to clipping, background estimating, and extraction methods in [Photometry.jl](@extref).
 """
-function get_sources(img; box_size = nothing, nsigma = 1)
-    if isnothing(box_size)
-        box_size = _compute_box_size(img)
-    end
-
+function get_sources(img; box_size = _compute_box_size(img), nsigma = 1)
     # Background subtract `img`
     clipped = sigma_clip(img, 1, fill = NaN)
     bkg, bkg_rms = estimate_background(clipped, box_size)
@@ -93,6 +89,11 @@ function _photometry(img, box_size, ap_radius, min_fwhm, nsigma, f; filter_fwhm)
     return phot
 end
 
+"""
+    triangle_invariants(phot)
+
+Get the tris
+"""
 function triangle_invariants(phot)
     C = combinations(phot, 3)
     ℳ = map(C) do (pa, pb, pc)
@@ -107,6 +108,11 @@ function triangle_invariants(phot)
     return C, ℳ
 end
 
+"""
+    find_nearest(C_to, ℳ_to, C_from, ℳ_from)
+
+Closest pair.
+"""
 function find_nearest(C_to, ℳ_to, C_from, ℳ_from)
     idxs, dists = nn(KDTree(ℳ_to), ℳ_from)
     idx_from = argmin(dists)
@@ -116,19 +122,24 @@ function find_nearest(C_to, ℳ_to, C_from, ℳ_from)
     return sol_to, sol_from
 end
 
-function align(img_to, img_from; box_size = nothing, ap_radius = nothing, f = PSF(), min_fwhm = nothing, nsigma = 1)
-    if isnothing(box_size)
-        box_size = _compute_box_size(img_to)
-    end
+"""
+    function align(img_to, img_from;
+        box_size = _compute_box_size(img_to),
+        ap_radius = 0.6 * box_size,
+        f = PSF(),
+        min_fwhm = box_size .÷ 5,
+        nsigma = 1,
+    )
 
-    if isnothing(ap_radius)
-        ap_radius = 0.6 * first(box_size)
-    end
-
-    if isnothing(min_fwhm)
-        min_fwhm = box_size .÷ 5
-    end
-
+Align the things
+"""
+function align(img_to, img_from;
+        box_size = _compute_box_size(img_to),
+        ap_radius = 0.6 * box_size,
+        f = PSF(),
+        min_fwhm = box_size .÷ 5,
+        nsigma = 1,
+    )
     # Step 1: Identify control points
     phot_to = _photometry(img_to, box_size, ap_radius, min_fwhm, nsigma, f; filter_fwhm=true)
     phot_from = _photometry(img_from, box_size, ap_radius, min_fwhm, nsigma, f; filter_fwhm=true)
