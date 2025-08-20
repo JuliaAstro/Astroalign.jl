@@ -15,6 +15,14 @@ using PSFModels: gaussian, fit
 
 export align, find_nearest, get_photometry, get_sources, triangle_invariants
 
+
+"""
+    get_sources(img; box_size = nothing, nsigma = 1)
+
+Extract candidate sources in `img` according to [`Photometry.Detection.extract_sources`](@extref). By default, `img` is first sigma clipped and then background subtracted before the candidate sources are extracted. `box_size` is passed to [`Photometry.Background.estimate_background`](@extref), and `nsigma` is passed to [`Photometry.Detection.extract_sources`](@extref). See the documentation in that package for more.
+
+TODO: Pass more options to clipping, background estimating, and extraction methods in [Photometry.jl](@extref).
+"""
 function get_sources(img; box_size = nothing, nsigma = 1)
     if isnothing(box_size)
         box_size = _compute_box_size(img)

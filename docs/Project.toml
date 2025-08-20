@@ -1,0 +1,20 @@
+[deps]
+AstroImages = "fe3fc30c-9b16-11e9-1c73-17dabf39f4ad"
+Astroalign = "7f4629bd-323a-4fad-ad42-4ee56350f27f"
+CairoMakie = "13f3f980-e62b-5c42-98c6-ff1f3baf88f0"
+CoordinateTransformations = "150eb455-5306-5404-9cee-2592286d6298"
+Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
+DocumenterInterLinks = "d12716ef-a0f6-4df4-a9f1-a5a34e75c656"
+ImageTransformations = "02fcd773-0e25-5acc-982a-7f6622650795"
+PSFModels = "9ba017d1-7760-46cd-84a3-1e79e9ae9ddc"
+Photometry = "af68cb61-81ac-52ed-8703-edc140936be4"
+PlutoPlotly = "8e989ff0-3d88-8e9f-f020-2b208a939ff0"
+PlutoUI = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
+Rotations = "6038ab10-8711-5258-84ad-4b1120ba62dc"
+
+[sources]
+Astroalign = {path = ".."}
+Photometry = {rev = "custom_funcs", url = "https://github.com/icweaver/Photometry.jl"}
+
+[compat]
+PSFModels = "0.8.2"
