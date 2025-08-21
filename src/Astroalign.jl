@@ -19,7 +19,7 @@ export align_frame, get_sources, triangle_invariants, find_nearest
 """
     get_sources(img; box_size = nothing, nsigma = 1)
 
-Extract candidate sources in `img` according to [`Photometry.Detection.extract_sources`](@extref). By default, `img` is first sigma clipped and then background subtracted before the candidate sources are extracted. `box_size` is passed to [`Photometry.Background.estimate_background`](@extref), and `nsigma` is passed to [`Photometry.Detection.extract_sources`](@extref). See the documentation in that package for more.
+Extract candidate sources in `img` according to [`Photometry.Detection.extract_sources`](@extref). By default, `img` is first sigma clipped and then background subtracted before the candidate sources are extracted. `box_size` is passed to [`Photometry.Background.estimate_background`](@extref), and `nsigma` is passed to [`Photometry.Detection.extract_sources`](@extref). See the [Photometry.jl](@extref) documentation for more.
 
 TODO: Pass more options to clipping, background estimating, and extraction methods in [Photometry.jl](@extref).
 """
@@ -92,7 +92,7 @@ end
 """
     triangle_invariants(phot)
 
-Get the tris
+Returns all combinations (``C``) of three candidate point sources from the table of sources `phot` returned by [`Photometry.Aperture.photometry`](@extref), and the computed invariant ``\\mathscr M`` for each according to Eq. 3 from [_Beroiz, M., Cabral, J. B., & Sanchez, B. (2020)_](https://ui.adsabs.harvard.edu/abs/2020A%26C....3200384B/abstract).
 """
 function triangle_invariants(phot)
     C = combinations(phot, 3)
@@ -111,7 +111,7 @@ end
 """
     find_nearest(C_to, ℳ_to, C_from, ℳ_from)
 
-Closest pair.
+Return the closes pair of three points between the `from` and `to` frames in the invariant ``\\mathscr M`` space as computed by [`Astroalign.triangle_invariants`](@ref).
 """
 function find_nearest(C_to, ℳ_to, C_from, ℳ_from)
     idxs, dists = nn(KDTree(ℳ_to), ℳ_from)

@@ -36,7 +36,7 @@ See the accompanying [Pluto.jl notebook](https://juliaastro.org/Astroalign.jl/no
 # API / Reference
 
 ```@docs
-Astroalign.align
+Astroalign.align_frame
 Astroalign.get_sources
 Astroalign.triangle_invariants
 Astroalign.find_nearest
