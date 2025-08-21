@@ -22,3 +22,9 @@ makedocs(
     ),
     plugins = [links],
 )
+
+deploydocs(;
+    repo = "github.com/JuliaAstro/Astroalign.jl",
+    push_preview = true,
+    versions = ["stable" => "v^", "v#.#"], # Restrict to minor releases
+)
