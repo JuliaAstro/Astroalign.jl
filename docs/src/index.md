@@ -1,4 +1,4 @@
-# Astroalign.jl
+# Home
 
 [badges]
 
