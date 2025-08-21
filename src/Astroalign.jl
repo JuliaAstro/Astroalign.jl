@@ -5,15 +5,15 @@ using CoordinateTransformations: kabsch
 using Distances: euclidean
 using ImageTransformations: warp
 using NearestNeighbors: nn, KDTree
+using PSFModels: gaussian, fit
 using Photometry: estimate_background,
                   extract_sources,
                   photometry,
                   sigma_clip,
                   CircularAperture,
                   PeakMesh
-using PSFModels: gaussian, fit
 
-export align, find_nearest, get_sources, triangle_invariants
+export align_frame, get_sources, triangle_invariants, find_nearest
 
 
 """
@@ -23,7 +23,7 @@ Extract candidate sources in `img` according to [`Photometry.Detection.extract_s
 
 TODO: Pass more options to clipping, background estimating, and extraction methods in [Photometry.jl](@extref).
 """
-function get_sources(img; box_size = _compute_box_size(img), nsigma = 1)
+function get_sources(img; box_size = _compute_box_size(img), nsigma = 1, N_max = 10)
     # Background subtract `img`
     clipped = sigma_clip(img, 1, fill = NaN)
     bkg, bkg_rms = estimate_background(clipped, box_size)
@@ -31,7 +31,7 @@ function get_sources(img; box_size = _compute_box_size(img), nsigma = 1)
 
     return (
         # Sort detected sources from brightest to darkest
-        extract_sources(PeakMesh(; box_size, nsigma), subt, bkg, true),
+        first(extract_sources(PeakMesh(; box_size, nsigma), subt, bkg, true), N_max),
         # And also return the inputs, handy for debugging and data viz
         subt,
         bkg,
@@ -123,17 +123,23 @@ function find_nearest(C_to, ℳ_to, C_from, ℳ_from)
 end
 
 """
-    function align(img_to, img_from;
-        box_size = _compute_box_size(img_to),
-        ap_radius = 0.6 * box_size,
-        f = PSF(),
-        min_fwhm = box_size .÷ 5,
-        nsigma = 1,
+    function align_frame(img_to, img_from;
+        [box_size],
+        [ap_radius],
+        [f],
+        [min_fwhm],
+        [nsigma],
     )
 
-Align the things
+Align `img_from` onto `img_to`. See below for keyword arguments currently available to control this process.
+
+* `box_size`: The size of the grid cells (in pixels) used to extract candidate point sources to use for alignment. Defaults to a tenth of the greatest common denominator of the dimensions of `img_to`. See [Photometry.jl > Source Detection Algorithms](@extref Photometry Source-Detection-Algorithms) for more.
+* `ap_radius`: The radius of the apertures (in pixel) to place around each point source. Defaults to 60% of `first(box_size)`. See [Photometry.jl > Aperture Photometry](@extref Photometry Aperture-Photometry) for more.
+* `f`: The function to compute within each aperture. Defaults to a 2D Gaussian fitted to the aperture center. See the [Source characterization](https://juliaastro.org/Astroalign.jl/notebook.html#Source-characterization) section of the accompanying Pluto.jl notebook for more.
+* `min_fwhm`: The minimum FWHM (in pixels) that an extracted point source must have to be considered as a control point. Defaults to a fifth of the width of the first image. See [PSFModels.jl > Fitting data](@extref PSFModels Fitting-data) for more.
+* `nsigma`: The number of standard deviations above the estimated background that a source must be to be considered as a control point. Defaults to 1. See [Photometry.jl > Source Detection Algorithms](@extref Photometry Source-Detection-Algorithms) for more.
 """
-function align(img_to, img_from;
+function align_frame(img_to, img_from;
         box_size = _compute_box_size(img_to),
         ap_radius = 0.6 * box_size,
         f = PSF(),

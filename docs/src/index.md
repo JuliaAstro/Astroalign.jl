@@ -18,10 +18,16 @@ pkg> add Astroalign
 ## Getting Started
 
 ```julia
-img_aligned, params = align(img_to, img_from)
+img_aligned, params = align(img_to, img_from;
+    box_size,
+    ap_radius,
+    min_fwhm = box_size .÷ 5,
+    nsigma = 1,
+    f = Astroalign.PSF(),
+)
 ```
 
-See the accompanying Pluto.jl notebook for more.
+See the accompanying [Pluto.jl notebook](https://juliaastro.org/Astroalign.jl/notebook.html) for more.
 
 ## Contributing
 
@@ -31,7 +37,7 @@ See the accompanying Pluto.jl notebook for more.
 
 ```@docs
 Astroalign.align
-Astroalign.find_nearest
 Astroalign.get_sources
 Astroalign.triangle_invariants
+Astroalign.find_nearest
 ```

@@ -8,6 +8,7 @@ using AstroImages
 
 links = InterLinks(
     "Photometry" => "https://juliaastro.org/Photometry/stable/",
+    "PSFModels" => "https://juliaastro.org/PSFModels/stable/",
 )
 
 makedocs(

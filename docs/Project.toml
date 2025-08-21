@@ -15,6 +15,3 @@ Rotations = "6038ab10-8711-5258-84ad-4b1120ba62dc"
 [sources]
 Astroalign = {path = ".."}
 Photometry = {rev = "custom_funcs", url = "https://github.com/icweaver/Photometry.jl"}
-
-[compat]
-PSFModels = "0.8.2"
