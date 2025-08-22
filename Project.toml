@@ -18,6 +18,7 @@ url = "https://github.com/icweaver/Photometry.jl"
 [compat]
 Combinatorics = "1"
 CoordinateTransformations = "0.6"
+Distances = "0.10"
 ImageTransformations = "0.10"
 NearestNeighbors = "0.4"
 PSFModels = "0.8.2"
