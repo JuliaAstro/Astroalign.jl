@@ -1,6 +1,12 @@
 # Home
 
-[badges]
+[![Stable](https://img.shields.io/badge/docs-stable-blue.svg)](https://juliaastro.org/Astroalign/stable)
+[![Dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://juliaastro.org/Astroalign.jl/dev)
+
+[![CI](https://github.com/JuliaAstro/Astroalign.jl/actions/workflows/CI.yml/badge.svg)](https://github.com/JuliaAstro/Astroalign.jl/actions/workflows/CI.yml)
+[![codecov](https://codecov.io/gh/JuliaAstro/Astroalign.jl/graph/badge.svg)](https://codecov.io/gh/JuliaAstro/Astroalign.jl)
+[![Aqua QA](https://raw.githubusercontent.com/JuliaTesting/Aqua.jl/master/badge.svg)](https://github.com/JuliaTesting/Aqua.jl)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 Align astronomical images of point sources. Based on the [`astroalign`](https://github.com/quatrope/astroalign) Python package.
 
@@ -17,17 +23,16 @@ pkg> add Astroalign
 
 ## Getting Started
 
+The following will align `img_from` onto `img_to`:
+
 ```julia
-img_aligned, params = align(img_to, img_from;
-    box_size,
-    ap_radius,
-    min_fwhm = box_size .÷ 5,
-    nsigma = 1,
-    f = Astroalign.PSF(),
-)
+using Astroalign
+
+img_aligned, params = align_frame(img_to, img_from)
 ```
 
-See the accompanying [Pluto.jl notebook](https://juliaastro.org/Astroalign.jl/notebook.html) for more.
+!!! info
+    See the accompanying [Pluto.jl notebook](https://juliaastro.org/Astroalign.jl/notebook.html) for more on supported keywords and additional analysis.
 
 ## Contributing
 
@@ -38,6 +43,6 @@ See the accompanying [Pluto.jl notebook](https://juliaastro.org/Astroalign.jl/no
 ```@docs
 Astroalign.align_frame
 Astroalign.get_sources
-Astroalign.triangle_invariants
 Astroalign.find_nearest
+Astroalign.triangle_invariants
 ```
