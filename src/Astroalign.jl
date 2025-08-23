@@ -13,7 +13,7 @@ using Photometry: estimate_background,
                   CircularAperture,
                   PeakMesh
 
-export align_frame, get_sources, triangle_invariants, find_nearest
+export align_frame, get_sources, find_nearest, triangle_invariants
 
 
 """
