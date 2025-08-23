@@ -3,6 +3,7 @@
 
 [![CI](https://github.com/JuliaAstro/Astroalign.jl/actions/workflows/CI.yml/badge.svg)](https://github.com/JuliaAstro/Astroalign.jl/actions/workflows/CI.yml)
 [![codecov](https://codecov.io/gh/JuliaAstro/Astroalign.jl/graph/badge.svg)](https://codecov.io/gh/JuliaAstro/Astroalign.jl)
+[![Aqua QA](https://raw.githubusercontent.com/JuliaTesting/Aqua.jl/master/badge.svg)](https://github.com/JuliaTesting/Aqua.jl)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 An experimental reimplementation of [astroalign](https://github.com/quatrope/astroalign) in Julia.
