@@ -130,4 +130,16 @@ end
         [5.0, 6.0] => [6.0, 6.0],
         [9.0, 6.0] => [10.0, 6.0],
     ]
+    @test params.tfm.linear == [1 0; 0 1]
+    @test params.tfm.translation == [-1.0, 0.0] # AstroImages.jl orientation convention
+end
+
+@testitem "api" setup = [Data] begin
+    using Astroalign: PSF
+
+    img = Data.img_to
+
+    p = PSF(params = (x = 6, y = 6, fwhm = 1))(img)
+
+    @test propertynames(p) == (:psf_params, :psf_model, :psf_data)
 end
