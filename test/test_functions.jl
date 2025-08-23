@@ -135,11 +135,15 @@ end
 end
 
 @testitem "api" setup = [Data] begin
-    using Astroalign: PSF
+    import Astroalign
 
-    img = Data.img_to
+    img_to = Data.img_to
+    img_from = Data.img_from
 
-    p = PSF(params = (x = 6, y = 6, fwhm = 1))(img)
+    img_aligned, p = Astroalign.align_frame(img_to, img_from;
+        f = Astroalign.PSF(params = (x = 6, y = 6, fwhm = 1))
+    )
 
-    @test propertynames(p) == (:psf_params, :psf_model, :psf_data)
+    @test img_aligned isa AbstractMatrix
+    @test propertynames(p) == (:point_map, :tfm, :C_to, :ℳ_to, :C_from, :ℳ_from)
 end
