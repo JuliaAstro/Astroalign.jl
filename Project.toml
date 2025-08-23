@@ -11,9 +11,6 @@ NearestNeighbors = "b8a86587-4115-5ab1-83bc-aa920d37bbce"
 PSFModels = "9ba017d1-7760-46cd-84a3-1e79e9ae9ddc"
 Photometry = "af68cb61-81ac-52ed-8703-edc140936be4"
 
-[sources]
-Photometry = {rev = "custom_funcs", url = "https://github.com/icweaver/Photometry.jl"}
-
 [compat]
 Combinatorics = "1"
 CoordinateTransformations = "0.6"
