@@ -141,7 +141,7 @@ Align `img_from` onto `img_to`. See below for keyword arguments currently availa
 """
 function align_frame(img_to, img_from;
         box_size = _compute_box_size(img_to),
-        ap_radius = 0.6 * box_size,
+        ap_radius = 0.6 * first(box_size),
         f = PSF(),
         min_fwhm = box_size .÷ 5,
         nsigma = 1,
