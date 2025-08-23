@@ -53,13 +53,20 @@ function fit_psf(img_ap, p)
     psf_data ./= maximum(psf_data)
 
     # Set params
-    if isempty(p.params)
-        y, x = Tuple(argmax(psf_data))
-        fwhm = _compute_box_size(img_ap)
-        params = (; x, y, fwhm)
+    y, x = if !hasproperty(p.params, :x) && !hasproperty(p.params, :y)
+        Tuple(argmax(psf_data))
     else
-        params = p.params
+        p.params.x, p.params.y
     end
+
+    fwhm = if !hasproperty(p.params, :fwhm)
+        _compute_box_size(img_ap)
+    else
+        p.params.fwhm
+    end
+
+    # TODO: Generalize to other PSFs
+    params = (; x, y, fwhm)
 
     # Fit
     psf_params, psf_model = fit(p.model, params, psf_data; func_kwargs=p.func_kwargs, p.kwargs...)
