@@ -1,3 +1,6 @@
+using Revise
+Revise.revise()
+
 using Documenter, DocumenterInterLinks
 using Documenter.Remotes: GitHub
 using Astroalign
@@ -5,6 +8,7 @@ using AstroImages
 
 links = InterLinks(
     "Photometry" => "https://juliaastro.org/Photometry/stable/",
+    "PSFModels" => "https://juliaastro.org/PSFModels/stable/",
 )
 
 makedocs(
@@ -17,4 +21,10 @@ makedocs(
         canonical = "https://juliaastro.org/Astroalign/stable/",
     ),
     plugins = [links],
+)
+
+deploydocs(;
+    repo = "github.com/JuliaAstro/Astroalign.jl",
+    push_preview = true,
+    versions = ["stable" => "v^", "v#.#"], # Restrict to minor releases
 )

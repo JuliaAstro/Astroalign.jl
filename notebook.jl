@@ -20,10 +20,12 @@ end
 begin
 	import Pkg
 	Pkg.resolve()
-	Pkg.activate(Base.current_project())
+	Pkg.activate(joinpath(@__DIR__, "docs"))
 	Pkg.instantiate()
 	
-	using Astroalign, AstroImages, PlutoPlotly, PlutoUI, PSFModels, Revise, Rotations, Photometry, ImageTransformations, CoordinateTransformations
+	using Revise
+	
+	using Astroalign, AstroImages, PlutoPlotly, PlutoUI, PSFModels, Rotations, Photometry, ImageTransformations, CoordinateTransformations
 	
 	AstroImages.set_cmap!(:cividis)
 
@@ -64,20 +66,12 @@ md"""
 In this particular case, `img_from` is rotated clockwise, and shifted vertically upwards and horizontally to the left relative to `img_to` in the above plot. Let's fix it.
 """
 
-# ╔═╡ 58b2a3ab-9a1b-469c-8c2e-2f4e1740d6d5
-md"""
-The available parameters to adjust are:
-
-* `box_size`: The size of the grid cells (in pixels) used to extract point sources. Defaults to a tenth of the GCD of the dimensions of the first image. See [Photometry.jl > Source Detection Algorithms](https://juliaastro.org/Photometry/stable/detection/algs/#Source-Detection-Algorithms) for more.
-* `ap_radius`: The radius of the apertures (in pixel) to place around each point source. Defaults to 60% of `first(box_size)`. See [Photometry.jl > Aperture Photometry](https://juliaastro.org/Photometry/stable/apertures/) for more.
-* `min_fwhm`: The minimum FWHM (in pixels) that an extracted point source must have to be considered as a control point. Defaults to a fifth of the width of the first image. See [PSFModels.jl > Fitting data](https://juliaastro.org/PSFModels/stable/introduction/#Fitting-data) for more.
-* `nsigma`: The number of standard deviations above the estimated background that a source must be to be considered as a control point. Defaults to 1. See [Photometry.jl > Source Detection Algorithms](https://juliaastro.org/Photometry/stable/detection/algs/#Source-Detection-Algorithms) for more.
-* `f`: The function to compute within each aperture. Defaults to a 2D Gaussiam fitted to the aperture center. See the [Source characterization](#Source-characterization) section of this notebook for more.
-"""
+# ╔═╡ f5e32327-6eaa-44f6-a40f-49aaef93b094
+@doc align_frame
 
 # ╔═╡ a1cb22fc-e956-4cf7-aafc-0168da23e556
 md"""
-For even more control, each step of the alignment process has an associated API that can be used from Astroalign.jl, along with additional parametes returned by `Astroalign.align` which we show in the rest of this notebook.
+For even more control, each step of the alignment process has an associated API that can be used from Astroalign.jl, along with additional parameters returned by `Astroalign.align_frame`, which we show in the rest of this notebook.
 """
 
 # ╔═╡ b8323ad8-c26b-4cc7-9891-caa05c128fb1
@@ -131,7 +125,7 @@ end |> AstroImage;
 
 # ╔═╡ a2ed7b77-1277-41a3-8c29-a9814b124d09
 md"""
-## Align -- ✨
+## Align ✨
 """
 
 # ╔═╡ 2bc269e1-dbe3-4c68-9a30-8c6054bc3a82
@@ -156,6 +150,7 @@ img = img_to;
 
 # ╔═╡ fb0efcf4-26d4-4554-a5cf-b1136f5a6c17
 # Sources, background subtracted image, background
+# Guard against extraneous matches by only taking first 10
 sources, subt, errs = get_sources(img);
 
 # ╔═╡ 8afa31f0-ee57-4628-bedf-dd2b79faef72
@@ -165,7 +160,7 @@ box_size = Astroalign._compute_box_size(img)
 ap_radius = 0.6 * first(box_size)
 
 # ╔═╡ 445a0d35-2b49-42cc-8529-176778b0e090
-arr_aligned_from, align_params = align(img_to, img_from;
+arr_aligned_from, align_params = align_frame(img_to, img_from;
 	box_size,
 	ap_radius,
 	min_fwhm = box_size .÷ 5,
@@ -277,7 +272,7 @@ This is performed internally on a per-image basis with the `Astroalign._get_phot
 md"""
 ### Step 2: Calculate invariants
 
-This is done internally in `Astroalign.align`, but the computed invariants `ℳᵢ` can be exposed with `Astroalign.triangle_invariants` for plotting and debugging. Below is a plot comparing the compents of the computed invariants for all control points in our `from` and `to` images. Overlapping sections indicates similar triangle between images found by Astroalign.jl. Compare to Fig 1. in [Beroiz, M., Cabral, J. B., & Sanchez, B. (2020)](https://arxiv.org/pdf/1909.02946).
+This is done internally in `Astroalign.align_frame`, but the computed invariants `ℳᵢ` can be exposed with `Astroalign.triangle_invariants` for plotting and debugging. Below is a plot comparing the compents of the computed invariants for all control points in our `from` and `to` images. Overlapping sections indicates similar triangle between images found by Astroalign.jl. Compare to Fig 1. in [Beroiz, M., Cabral, J. B., & Sanchez, B. (2020)](https://arxiv.org/pdf/1909.02946).
 """
 
 # ╔═╡ c46335bc-ae9a-4257-8a85-b4ccb94d1744
@@ -285,7 +280,7 @@ C_to, ℳ_to = triangle_invariants(phot_to)
 
 # ╔═╡ d1d3f995-b901-4aab-86cd-e2d6f2393190
 md"""
-This can also be accessed through the `align_params` named tuple returned by `Astroalign.align` in the [Usage](#Usage) example. We will use this to get the corresponding invariants for our `from` image;
+This can also be accessed through the `align_params` named tuple returned by `Astroalign.align_frame` in the [Usage](#Usage) example. We will use this to get the corresponding invariants for our `from` image;
 """
 
 # ╔═╡ ad82de06-50f8-4e30-80b9-e4821e845162
@@ -352,7 +347,7 @@ tfm = kabsch(last.(point_map) => first.(point_map); scale=false)
 
 # ╔═╡ 3779aed1-a02d-4370-8d56-37a2a5d374bf
 md"""
-We can now hand off this transformation to an image transformation library like `JuliaAstroImages.ImageTransformations` to view our final results. This should match our results returned by `Astroalign.align` in the [Usage](#Usage) example.
+We can now hand off this transformation to an image transformation library like `JuliaAstroImages.ImageTransformations` to view our final results. This should match our results returned by `Astroalign.align_frame` in the [Usage](#Usage) example.
 """
 
 # ╔═╡ 7990c8be-9425-47d0-a913-9e2bb4fbefd1
@@ -481,7 +476,7 @@ end
 plot_pair(img_to, img_from)
 
 # ╔═╡ 8769216b-00d4-44bd-97fd-7aa89cf19c23
-plot_pair(img_to, AstroImage(arr_aligned_from))
+plot_pair(img_to, arr_aligned_from)
 
 # ╔═╡ 066210ea-b5b3-4f73-8fc1-503625fc32ce
 fig = plot_pair(img_to, img_aligned_from)
@@ -493,9 +488,9 @@ fig = plot_pair(img_to, img_aligned_from)
 # ╟─e1434564-9864-4ea2-9223-2b3b5aa0093a
 # ╟─f128f050-b716-4a79-8bb6-640708d1bc88
 # ╟─b51e47f6-af8e-478a-a716-af74e33c9e99
-# ╠═8769216b-00d4-44bd-97fd-7aa89cf19c23
+# ╟─8769216b-00d4-44bd-97fd-7aa89cf19c23
 # ╠═445a0d35-2b49-42cc-8529-176778b0e090
-# ╟─58b2a3ab-9a1b-469c-8c2e-2f4e1740d6d5
+# ╠═f5e32327-6eaa-44f6-a40f-49aaef93b094
 # ╟─a1cb22fc-e956-4cf7-aafc-0168da23e556
 # ╟─b8323ad8-c26b-4cc7-9891-caa05c128fb1
 # ╟─eff56f6e-ab01-4371-a75f-f44bdde7cfd6
@@ -538,7 +533,7 @@ fig = plot_pair(img_to, img_aligned_from)
 # ╠═bd2d9faf-7e0c-4a46-91e9-b3984dd3090e
 # ╠═7f0b20db-e369-4e6a-aa5e-7df949791915
 # ╠═05537e5b-347a-4198-80e9-7eeed85b08ca
-# ╠═0612c049-c6d1-4e6a-a44a-b2f93a39a2c6
+# ╟─0612c049-c6d1-4e6a-a44a-b2f93a39a2c6
 # ╟─1150fd19-ece7-4fd0-91db-a4df982d1e8e
 # ╠═6646cf68-daf0-4a83-b3a8-43415ee8f97f
 # ╠═9db16b0e-1e1e-40a5-b7f4-56f819f4e0b1
