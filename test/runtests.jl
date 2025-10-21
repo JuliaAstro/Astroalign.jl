@@ -1,4 +1,84 @@
+using Astroalign
+using ParallelTestRunner
 using Test
-using TestItemRunner
 
-@run_package_tests filter = ti -> occursin("Astroalign.jl/test", ti.filename) verbose = true
+const init_code = quote
+    const Data = (
+        # 3-4-5 triangle in 1st and 4th quadrant
+        img_to = [
+            0 0 0 0 0 0 0 0 0 0 0
+            0 0 0 0 0 1 0 0 0 0 0
+            0 0 0 0 0 0 0 0 0 0 0
+            0 0 0 0 0 0 0 0 0 0 0
+            0 0 0 0 0 0 0 0 0 0 0
+            0 0 0 0 0 1 0 0 1 0 0
+            0 0 0 0 0 0 0 0 0 0 0
+            0 0 0 0 0 0 0 0 0 0 0
+            0 0 0 0 0 0 0 0 0 0 0
+            0 0 0 0 0 1 0 0 0 0 0
+            0 0 0 0 0 0 0 0 0 0 0
+       ],
+
+       points_to = (
+            (xcenter = 0, ycenter = 0),
+            (xcenter = 0, ycenter = 4),
+            (xcenter = 0, ycenter = -4),
+            (xcenter = 3, ycenter = 0),
+        ),
+
+        # Asterism shifted vertically one unit
+        img_from = [
+            0 0 0 0 0 1 0 0 0 0 0
+            0 0 0 0 0 0 0 0 0 0 0
+            0 0 0 0 0 0 0 0 0 0 0
+            0 0 0 0 0 0 0 0 0 0 0
+            0 0 0 0 0 1 0 0 1 0 0
+            0 0 0 0 0 0 0 0 0 0 0
+            0 0 0 0 0 0 0 0 0 0 0
+            0 0 0 0 0 0 0 0 0 0 0
+            0 0 0 0 0 1 0 0 0 0 0
+            0 0 0 0 0 0 0 0 0 0 0
+            0 0 0 0 0 0 0 0 0 0 0
+        ],
+
+        points_from = (
+            (xcenter = 0, ycenter =  1),
+            (xcenter = 0, ycenter =  5),
+            (xcenter = 0, ycenter = -3),
+            (xcenter = 3, ycenter =  1),
+        ),
+
+        combinations_to = [
+            [(xcenter = 0, ycenter = 0), (xcenter = 0, ycenter =  4), (xcenter = 0, ycenter = -4)],
+            [(xcenter = 0, ycenter = 0), (xcenter = 0, ycenter =  4), (xcenter = 3, ycenter =  0)],
+            [(xcenter = 0, ycenter = 0), (xcenter = 0, ycenter = -4), (xcenter = 3, ycenter =  0)],
+            [(xcenter = 0, ycenter = 4), (xcenter = 0, ycenter = -4), (xcenter = 3, ycenter =  0)],
+        ],
+
+        combinations_from = [
+            [(xcenter = 0, ycenter = 1), (xcenter = 0, ycenter =  5), (xcenter = 0, ycenter = -3)],
+            [(xcenter = 0, ycenter = 1), (xcenter = 0, ycenter =  5), (xcenter = 3, ycenter =  1)],
+            [(xcenter = 0, ycenter = 1), (xcenter = 0, ycenter = -3), (xcenter = 3, ycenter =  1)],
+            [(xcenter = 0, ycenter = 5), (xcenter = 0, ycenter = -3), (xcenter = 3, ycenter =  1)],
+        ],
+
+        invariants = [
+            8/4 5/4 5/4 8/5
+            4/4 4/3 4/3 5/5
+        ],
+
+        matched_triangle_to = [
+            (xcenter = 0, ycenter =  0),
+            (xcenter = 0, ycenter =  4),
+            (xcenter = 0, ycenter = -4),
+        ],
+
+        matched_triangle_from = [
+            (xcenter = 0, ycenter = 1),
+            (xcenter = 0, ycenter = 5),
+            (xcenter = 0, ycenter = -3),
+        ],
+    )
+end
+
+runtests(Astroalign, ["--verbose"]; init_code)
