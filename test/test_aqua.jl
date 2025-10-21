@@ -1,4 +1,4 @@
-@testitem "Aqua tests" begin
+@testset "Aqua tests" begin
     using Astroalign
     using Aqua
 
