@@ -1,4 +1,4 @@
-name: CI (nightly)
+name: CI
 
 on:
   push:
@@ -19,13 +19,15 @@ jobs:
       fail-fast: false
       matrix:
         version:
-          - "nightly"
+          - "min"
+          - "1"
+          - "pre"
         os:
           - ubuntu-latest
           - macOS-latest
           - windows-latest
         arch:
-          - x64
+          - default
     steps:
       - uses: actions/checkout@v5
       - uses: julia-actions/setup-julia@v2
