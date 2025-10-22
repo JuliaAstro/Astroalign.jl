@@ -1,8 +1,7 @@
 [![Stable](https://img.shields.io/badge/docs-stable-blue.svg)](https://juliaastro.org/Astroalign/stable)
 [![Dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://juliaastro.org/Astroalign.jl/dev)
 
-[![CI (stable)](https://github.com/JuliaAstro/Astroalign.jl/actions/workflows/CI_stable.yml/badge.svg)](https://github.com/JuliaAstro/Astroalign.jl/actions/workflows/CI_stable.yml)
-[![CI (nightly)](https://github.com/JuliaAstro/Astroalign.jl/actions/workflows/CI_nightly.yml/badge.svg)](https://github.com/JuliaAstro/Astroalign.jl/actions/workflows/CI_nightly.yml)
+[![CI](https://github.com/JuliaAstro/Astroalign.jl/actions/workflows/CI.yml/badge.svg)](https://github.com/JuliaAstro/Astroalign.jl/actions/workflows/CI.yml)
 [![codecov](https://codecov.io/gh/JuliaAstro/Astroalign.jl/graph/badge.svg)](https://codecov.io/gh/JuliaAstro/Astroalign.jl)
 [![Aqua QA](https://raw.githubusercontent.com/JuliaTesting/Aqua.jl/master/badge.svg)](https://github.com/JuliaTesting/Aqua.jl)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
