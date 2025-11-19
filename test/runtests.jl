@@ -1,5 +1,5 @@
+using ParallelTestRunner: runtests, find_tests, parse_args
 using Astroalign
-using ParallelTestRunner
 using Test
 
 const init_code = quote
@@ -81,4 +81,7 @@ const init_code = quote
     )
 end
 
-runtests(Astroalign, ["--verbose"]; init_code)
+args = parse_args(Base.ARGS)
+testsuite = find_tests(@__DIR__)
+
+runtests(Astroalign, args; testsuite, init_code)
