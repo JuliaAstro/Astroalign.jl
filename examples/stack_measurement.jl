@@ -11,6 +11,7 @@ using AstroImages # to be able to load FITS data
 using FileIO
 using MultifileArrays: load_series # add https://github.com/JuliaIO/MultifileArrays.jl.git
 
+include("preprocess_helpers.jl") # for background subtraction and field flatness correction
 
 if (false) # run this code to download the data and store it locally
     # Here is some example data taken on my dwarf 3 telescope:
@@ -49,7 +50,7 @@ plot(prepare_for_display(stacked_d, 0.08))
 # @vt prepare_for_viewer(stacked_d)
 
 # bin first and process the binned color data
-all_binned = bin_rgb(data);
+all_binned = Astroalign.bin_rgb(data);
 box_size = (9, 9)
 ap_radius = 0.6 * first(box_size);
 stacked_c, all_params_c = stack_many(all_binned; dist_limit = 2, 
@@ -59,7 +60,7 @@ stacked_c, all_params_c = stack_many(all_binned; dist_limit = 2,
 plot(prepare_for_display(stacked_c, 0.08)) 
 
 # bin and sum colors first and process the binned monochrome data
-all_binned_m = Float32.(bin_mono(data));
+all_binned_m = Astroalign.bin_mono(data);
 box_size = (9, 9)
 ap_radius = 0.6 * first(box_size);
 stacked_m, all_param_m = stack_many(all_binned_m; dist_limit = 2, 

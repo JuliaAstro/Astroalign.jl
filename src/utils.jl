@@ -12,20 +12,43 @@ function bin_mono(data; DT=eltype(data))
     return sum(bin_rgb(data), dims=ndims(data)+1)
 end
 
+"""
+    bin_rgb(data; DT=eltype(data), bayer_pattern="RGGB")
+
+bins bayer-patternd data into red, green and blue channels.
+The result has half the pixel numbers in each dimension but the 3 RGB color channels are mutually shifted by
+half pixels in the result grid. The green channel is blurred, since two values from different pixel coordinates are summed.
+
+# Parameters
+* `data`: data to split into channels. This can be a single image or a stack.
+* `DT`: result datatype (default is the input datatype)
+* `bayer_pattern`: a string of size 4 characters, indicating the order of colors. The default ("RGGB") corresponds to
+This pattern (starting from the top left corner of `mosaic_stack`)
+R G R G
+G B R B
+R G R G
+G B R B 
+"""
 function bin_rgb(data; DT=eltype(data), bayer_pattern="RGGB")
     res = similar(data, DT, (size(data,1).÷2, size(data,2).÷2, size(data)[3:end]..., 3))
+    res .= 0;
     idx_sequence = get_bayer_index(bayer_pattern)
     other_idx = ntuple((d)->Colon(), ndims(data)-2)
-    res[:,:,other_idx..., idx_sequence[1]] = data[1:2:end-1, 1:2:end-1, other_idx...]
-    res[:,:,other_idx..., idx_sequence[2]] = data[2:2:end, 1:2:end-1, other_idx...]
-    res[:,:,other_idx..., idx_sequence[3]] = data[1:2:end-1, 2:2:end, other_idx...]
-    res[:,:,other_idx..., idx_sequence[4]] = data[2:2:end, 2:2:end, other_idx...]
-    normfac = reorient([sum(idx_sequence .== 1), sum(idx_sequence .== 2), sum(idx_sequence .== 3)], Val(ndims(res)))
+    res[:,:,other_idx..., idx_sequence[1]] .+= data[1:2:end-1, 1:2:end-1, other_idx...]
+    res[:,:,other_idx..., idx_sequence[2]] .+= data[2:2:end, 1:2:end-1, other_idx...]
+    res[:,:,other_idx..., idx_sequence[3]] .+= data[1:2:end-1, 2:2:end, other_idx...]
+    res[:,:,other_idx..., idx_sequence[4]] .+= data[2:2:end, 2:2:end, other_idx...]
+    reorient_tuple = ntuple((d)-> (d == ndims(res)) ? 3 : 1, ndims(res))
+    normfac = reshape([sum(idx_sequence .== 1), sum(idx_sequence .== 2), sum(idx_sequence .== 3)], reorient_tuple)
     res ./= max.(1,normfac)
     return DT.(res)
 end
 
+"""
+    weighted_std(data, weights; dims=4)
 
+calculates the standard deviation allowing for (binary) weights indicating which pixels are considered.
+"""
 function weighted_std(data, weights; dims=4)
     mp = sum(data .* weights, dims=dims) ./ max.(1, sum(weights, dims=dims))
     myvar = sum(abs2.((data .- mp) .* weights), dims=dims) ./ max.(1, sum(weights, dims=dims))
@@ -38,23 +61,3 @@ function mystd(data; dims=4)
     return sqrt.(myvar)
 end
 
-"""
-    correct_dark_flat(data, dark_img=nothing, flat_img=nothing, channel=nothing; T=Float32)
-
-corrects data using a `dark_img` and `flat_img` by subtracting the dark and deviding by the normalized, dark-subtracted `flat_img`.
-
-* minval: a minum value for the dark-subtracted flat image to avoid division by zero.
-"""
-function correct_dark_flat(data, dark_img=nothing, flat_img=nothing, channel=nothing, minval=0.001f0; T=Float32)
-    if !isnothing(dark_img)
-        dark_img = select_region_view(dark_img, new_size=size(data)[1:2]);
-        data = T.(data) .- T.(dark_img);
-    end
-    if !isnothing(flat_img)
-        dark_img = isnothing(dark_img) ? 0 : dark_img
-        flat_img = max.(select_region_view(flat_img, new_size=size(data)[1:2]) .- dark_img, minval);
-        flat_img ./= T.(sum(flat_img)/length(flat_img))        
-        data = T.(T.(data) ./ flat_img);
-    end
-    data
-end

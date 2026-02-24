@@ -119,7 +119,7 @@ ref_slice = size(img_stack,3)÷2+1, min_sigma=2.0, kwargs...)
 function stack_many_drizzle(mosaic_stack; drizzle_supersampling = 2.0, min_sigma = 2.0,  
                 verbose=true, ref_slice = size(mosaic_stack,3)÷2+1, kwargs...)    
     # sum over colors (for alignment only)
-    ref_mono = bin_mono(@view mosaic_stack[:,:,ref_slice]);
+    ref_mono = bin_mono(@view mosaic_stack[:,:,ref_slice])[:,:,1];
 
     reduced_size = size(ref_mono)[1:2]
 
@@ -132,7 +132,7 @@ function stack_many_drizzle(mosaic_stack; drizzle_supersampling = 2.0, min_sigma
     ref_info = nothing;
 
     for (src, res_slice, mymask) in zip(eachslice(mosaic_stack, dims=3), eachslice(all_results, dims=4), eachslice(all_masks, dims=4))
-        src_mono = bin_mono(src); # sum over colors
+        src_mono = bin_mono(src)[:,:,1]; # sum over colors
         myres, params = align_frame(ref_mono, src_mono;
                 drizzle_supersampling = drizzle_supersampling,
                 to_warp = src, ref_info = ref_info, kwargs...)

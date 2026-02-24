@@ -86,4 +86,3 @@ testsuite = find_tests(@__DIR__)
 
 runtests(Astroalign, args; testsuite, init_code)
 
-include("test_stacker.jl")

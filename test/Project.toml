@@ -1,5 +1,0 @@
-[deps]
-Aqua = "4c88cf16-eb10-579e-8560-4a9242c79595"
-Astroalign = "7f4629bd-323a-4fad-ad42-4ee56350f27f"
-ParallelTestRunner = "d3525ed8-44d0-4b2c-a655-542cee43accc"
-Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
