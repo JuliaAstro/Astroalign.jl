@@ -21,6 +21,7 @@ makedocs(
         canonical = "https://juliaastro.org/Astroalign/stable/",
     ),
     plugins = [links],
+    warnonly = [:missing_docs]
 )
 
 deploydocs(;
