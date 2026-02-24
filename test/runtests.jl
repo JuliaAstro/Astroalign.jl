@@ -4,7 +4,7 @@ using Test
 
 const init_code = quote
     const Data = (
-        # 3-4-5 triangle in 1st and 4th quadrant
+        # 3-4-5 triangle in 1st quadrant
         img_to = [
             0 0 0 0 0 0 0 0 0 0 0
             0 0 0 0 0 1 0 0 0 0 0
@@ -14,8 +14,8 @@ const init_code = quote
             0 0 0 0 0 1 0 0 1 0 0
             0 0 0 0 0 0 0 0 0 0 0
             0 0 0 0 0 0 0 0 0 0 0
+            0 0 0 0 0 0 1 0 0 0 0
             0 0 0 0 0 0 0 0 0 0 0
-            0 0 0 0 0 1 0 0 0 0 0
             0 0 0 0 0 0 0 0 0 0 0
        ],
 
@@ -35,8 +35,8 @@ const init_code = quote
             0 0 0 0 0 1 0 0 1 0 0
             0 0 0 0 0 0 0 0 0 0 0
             0 0 0 0 0 0 0 0 0 0 0
+            0 0 0 0 0 0 1 0 0 0 0
             0 0 0 0 0 0 0 0 0 0 0
-            0 0 0 0 0 1 0 0 0 0 0
             0 0 0 0 0 0 0 0 0 0 0
             0 0 0 0 0 0 0 0 0 0 0
         ],
@@ -85,3 +85,5 @@ args = parse_args(Base.ARGS)
 testsuite = find_tests(@__DIR__)
 
 runtests(Astroalign, args; testsuite, init_code)
+
+include("test_stacker.jl")

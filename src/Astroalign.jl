@@ -1,8 +1,9 @@
 module Astroalign
 
 using Combinatorics: combinations
-using CoordinateTransformations: kabsch, SVector
+using CoordinateTransformations: kabsch
 using Distances: euclidean
+using StaticArrays: SVector
 using ImageTransformations: warp, AffineMap, Translation, compose
 using NearestNeighbors: nn, KDTree
 using PSFModels: gaussian, fit
