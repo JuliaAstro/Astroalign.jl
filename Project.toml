@@ -16,28 +16,12 @@ Photometry = "af68cb61-81ac-52ed-8703-edc140936be4"
 StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
 
 [compat]
-Aqua = "0.8"
 Combinatorics = "1"
 CoordinateTransformations = "0.6"
 Distances = "0.10"
 ImageTransformations = "0.10"
-IndexFunArrays = "0.2"
 NearestNeighbors = "0.4"
 PSFModels = "0.8"
-ParallelTestRunner = "2.4"
 Photometry = "0.9"
-Random = "<0.0.1, 1"
 StaticArrays = "1.9"
-Test = "<0.0.1, 1"
 julia = "1.10"
-
-[extras]
-Aqua = "4c88cf16-eb10-579e-8560-4a9242c79595"
-IndexFunArrays = "613c443e-d742-454e-bfc6-1d7f8dd76566"
-ParallelTestRunner = "d3525ed8-44d0-4b2c-a655-542cee43accc"
-Pkg = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
-Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
-Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
-
-[targets]
-test = ["Test", "Pkg", "Aqua", "ParallelTestRunner", "Random", "IndexFunArrays"]
