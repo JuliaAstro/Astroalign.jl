@@ -46,14 +46,23 @@ function stack_many(img_stack; verbose = true, ref_slice = size(img_stack,3)÷2+
     all_params = []
     all_results = similar(img_stack, dst_size)
     all_results .= 0
-    ref_img = sum((@view img_stack[:,:,ref_slice,:]), dims=4)[:,:,1,1]
+    # keep the alignment images in mono
+    # do NOT use a @view in the line below, as this leads to errors!
+    ref_img = sum(img_stack[:,:,ref_slice:ref_slice,:], dims=4)[:,:,1,1]
     # ref_img = @view img_stack[:,:,ref_slice,:]
     ref_info = nothing;
     n=1
     for (src_color, res_slice) in zip(eachslice(img_stack, dims=3), eachslice(all_results, dims=4))
-        src_mono = sum(src_color, dims=4)[:,:,1,1]; # sum over colors
+        # sum over colors. Note that eachslice removes dimension 3
+        src_mono = sum(src_color, dims=3)[:,:,1,1];
         myres, params = align_frame(ref_img, src_mono; to_warp=src_color, kwargs...)
-        ref_info = params[:ref_info]
+        if (haskey(params, :ref_info))
+           ref_info =  params[:ref_info]
+        else
+            @warn "ignoring slice $(n)"
+            n += 1
+            continue; # ignore this entry
+        end
         push!(all_params, params)
         res_slice .= myres
         if (verbose)
@@ -127,7 +136,13 @@ function stack_many_drizzle(mosaic_stack; drizzle_supersampling = 2.0, min_sigma
         myres, params = align_frame(ref_mono, src_mono;
                 drizzle_supersampling = drizzle_supersampling,
                 to_warp = src, ref_info = ref_info, kwargs...)
-        ref_info = params[:ref_info]
+        if (haskey(params, :ref_info))
+           ref_info =  params[:ref_info]
+        else
+            @warn "ignoring slice $(n)"
+            n += 1
+            continue; # ignore this entry
+        end
         push!(all_params, params)
         res_slice .= myres
         mymask .= params[:drizzle_mask]

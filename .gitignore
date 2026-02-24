@@ -1,2 +1,4 @@
 Manifest.toml
 docs/build/
+examples/example_data/*
+examples/example_data/

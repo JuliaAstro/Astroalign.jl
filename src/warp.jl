@@ -36,10 +36,6 @@ function forward_warp(src::AbstractMatrix{T}, tfm, dest_size; supersample=1) whe
     forward_warp!(result, weights, src, tfm; supersample=supersample)
 end
 
-function get_bayer_index(pattern="RGGB")
-    return ntuple((c)-> (pattern[c]=='R') ? 1 : (pattern[c]=='G') ? 2 : (pattern[c]=='B') ? 3 : 0, 4)
-end
-
 """
     drizzle_warp!(result, drizzle_mask, bayer_mosaic, tfm; supersample=2.0, bayer_pattern="RGGB")
 
@@ -166,11 +162,19 @@ function align_frame(img_to, img_from;
         @warn "the photometry algorithm did not find any stars in `img_to`. Adjust your input parameters!"
         return ([],(;))
     end
+    if length(phot_to) < 3
+        @warn "found less than 3 stars in `img_to`. Adjust your input parameters!"
+        return ([],(;))
+    end
     if isempty(phot_from)
         @warn "the photometry algorithm did not find any stars in `img_from`. Adjust your input parameters!"
         return ([],(;))
     end
-    # Step 2: Calculate invariants
+    if length(phot_from) < 3
+        @warn "found less than 3 stars in `img_from`. Adjust your input parameters!"
+        return ([],(;))
+    end
+    # Step 2: Calculate invariants (if needed)
     C_to, ℳ_to = isnothing(ref_info) ? triangle_invariants(phot_to) : ref_info[2]
     C_from, ℳ_from = triangle_invariants(phot_from)
 
@@ -206,9 +210,9 @@ function align_frame(img_to, img_from;
             push!(good_list, best_coord => [pt.xcenter, pt.ycenter])
         end
     end
-    isempty(good_list) && @warn("non of the $(length(phot_from)) stars to align to $(length(phot_to)) seems correctly positioned.")
+    isempty(good_list) && @warn("None of the $(length(phot_from)) stars to align to $(length(phot_to)) seems correctly positioned.")
     if (verbose)
-        println("$(length(good_list))/$(N_max), $(length(phot_to)) valid stars, corresponding star pairs with distance smaller than $(sqrt(dist2_limit)).")
+        println("$(length(good_list))/$(N_max) accepted of $(length(phot_to)) valid stars, corresponding star pairs with distance smaller than $(sqrt(dist2_limit)).")
         # @show good_list
     end
     stars_used = length(good_list)
@@ -227,12 +231,13 @@ function align_frame(img_to, img_from;
             warped = warp(img_from, tfm, axes(img_to))
         else
             if (size(to_warp,3) == 1)
-                warped = warp(to_warp, tfm, axes(img_to))
+                # the cast below is just eliminating possible extra dimensions
+                warped = warp((@view to_warp[:,:,1,1]), tfm, axes(img_to))
             else
                 tmp = warp(to_warp[:,:,1], tfm, axes(img_to))
                 warped = similar(tmp, (size(tmp)..., size(to_warp,3)))
                 warped .= 0
-                warped[:,:,1] .= tmp
+                warped[:,:,1] .= tmp 
                 for n in 2:size(to_warp, 3)
                     warped[:,:,n] = warp(to_warp[:,:,n], tfm, axes(img_to))
                 end
