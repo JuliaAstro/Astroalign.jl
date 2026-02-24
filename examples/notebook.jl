@@ -20,7 +20,7 @@ end
 begin
 	import Pkg
 	Pkg.resolve()
-	Pkg.activate(joinpath(@__DIR__, "docs"))
+	Pkg.activate(joinpath(dirname(@__DIR__), "docs"))
 	Pkg.instantiate()
 	
 	using Revise
