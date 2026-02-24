@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.20.21
+# v0.20.22
 
 using Markdown
 using InteractiveUtils
@@ -32,6 +32,9 @@ begin
 	Pkg.status()
 end
 
+# ╔═╡ d97c367c-4db1-4dd0-8066-3f12e08d2f01
+using Random
+
 # ╔═╡ 9e130a37-1073-4d0f-860a-0ec8d164dde1
 md"""
 # 📐 Aligning astronomical images
@@ -60,6 +63,9 @@ Here is a brief usage example aligning `img_from` onto `img_to` with the exporte
 
 # ╔═╡ e1434564-9864-4ea2-9223-2b3b5aa0093a
 @bind new_data Button("Generate new data")
+
+# ╔═╡ 5c4155fa-92bd-4260-a9d4-cea9dc5f3d93
+@bind seed Slider(0:10; show_value=true)
 
 # ╔═╡ b51e47f6-af8e-478a-a716-af74e33c9e99
 md"""
@@ -97,8 +103,9 @@ For simplicity, we'll just create $(N_sources) Gaussian point sources in a $(len
 # ╔═╡ 0ae46a86-dd86-4092-9d34-05f643ec08af
 begin
 	new_data
-	fwhms = [(rand(1:20), rand(1:20)) for _ in 1:N_sources]
-	positions_to = rand(30:12:240, N_sources, 2)
+	fwhms = [(rand(Xoshiro(seed), 1:20), rand(Xoshiro(seed), 1:20))
+			 for _ in 1:N_sources]
+	positions_to = rand(Xoshiro(seed), 30:12:240, N_sources, 2)
 end;
 
 # ╔═╡ f7639401-1fc9-4cb1-824c-4335a4bb8b25
@@ -107,7 +114,7 @@ end;
 function generate_model(model, params, inds)
 	cartinds = CartesianIndices(inds)
 	psf = model.(cartinds; params..., amp=30_000)
-	return psf .+ rand(1000:3000, size(psf))
+    return psf .+ rand(Xoshiro(seed), 1000:3000, size(psf))
 end
 
 # ╔═╡ 95531bde-8386-4d51-8c83-ffb796a41e90
@@ -486,6 +493,7 @@ fig = plot_pair(img_to, img_aligned_from)
 # ╟─fa1180d4-c1ea-4a1b-8476-0e8d185d5622
 # ╟─40c14093-3806-401f-aedf-f6435f785eb4
 # ╟─e1434564-9864-4ea2-9223-2b3b5aa0093a
+# ╟─5c4155fa-92bd-4260-a9d4-cea9dc5f3d93
 # ╟─f128f050-b716-4a79-8bb6-640708d1bc88
 # ╟─b51e47f6-af8e-478a-a716-af74e33c9e99
 # ╟─8769216b-00d4-44bd-97fd-7aa89cf19c23
@@ -496,6 +504,7 @@ fig = plot_pair(img_to, img_aligned_from)
 # ╟─eff56f6e-ab01-4371-a75f-f44bdde7cfd6
 # ╠═dc01eaaa-f1d0-4bc6-884f-778d848918c6
 # ╠═78c0bf28-bb96-4aea-8bf5-5929ef45adc1
+# ╠═d97c367c-4db1-4dd0-8066-3f12e08d2f01
 # ╠═0ae46a86-dd86-4092-9d34-05f643ec08af
 # ╠═95531bde-8386-4d51-8c83-ffb796a41e90
 # ╠═5882adec-7591-4d93-98e2-efb81496c54d
@@ -532,7 +541,7 @@ fig = plot_pair(img_to, img_aligned_from)
 # ╠═dc2a101a-36d7-4402-b543-c576aba987ea
 # ╠═bd2d9faf-7e0c-4a46-91e9-b3984dd3090e
 # ╠═7f0b20db-e369-4e6a-aa5e-7df949791915
-# ╠═05537e5b-347a-4198-80e9-7eeed85b08ca
+# ╟─05537e5b-347a-4198-80e9-7eeed85b08ca
 # ╟─0612c049-c6d1-4e6a-a44a-b2f93a39a2c6
 # ╟─1150fd19-ece7-4fd0-91db-a4df982d1e8e
 # ╠═6646cf68-daf0-4a83-b3a8-43415ee8f97f
