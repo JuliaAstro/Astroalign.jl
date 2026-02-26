@@ -1,4 +1,3 @@
-
 """
     get_sources(img; box_size = nothing, nsigma = 1, N_max = 10)
 

@@ -1,4 +1,3 @@
-# The registration algorithms
 """
     triangle_invariants(phot)
 
