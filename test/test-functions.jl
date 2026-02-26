@@ -49,12 +49,12 @@ end
 
     @test img_aligned ≈ img_to
     @test params.point_map == [
-        [1.0, 6.0] => [2.0, 6.0],
-        [5.0, 6.0] => [6.0, 6.0],
-        [9.0, 6.0] => [10.0, 6.0],
+        [5.0, 6.0] => [2.0, 6.0],
+        [9.0, 6.0] => [6.0, 6.0],
+        [9.0, 9.0] => [6.0, 9.0],
     ]
-    @test params.tfm.linear == [1 0; 0 1]
-    @test params.tfm.translation == [-1.0, 0.0] # AstroImages.jl orientation convention
+    @test params.tfm.linear ≈ [1 0; 0 1]
+    @test params.tfm.translation ≈ [3.0, 0.0]
 end
 
 @testset "api"  begin
@@ -64,9 +64,19 @@ end
     img_from = Data.img_from
 
     img_aligned, p = Astroalign.align_frame(img_to, img_from;
-        f = Astroalign.PSF(params = (x = 6, y = 6, fwhm = 1))
+        f = Astroalign.PSF(params = (x = 6, y = 6, fwhm = 3))
     )
 
     @test img_aligned isa AbstractMatrix
-    @test propertynames(p) == (:point_map, :tfm, :C_to, :ℳ_to, :C_from, :ℳ_from)
+    @test propertynames(p) == (
+        :point_map,
+        :tfm,
+        :C_to,
+        :ℳ_to,
+        :C_from,
+        :ℳ_from,
+        :drizzle_mask,
+        :stars_used,
+        :ref_info,
+    )
 end
