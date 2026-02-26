@@ -91,7 +91,7 @@ This is achieved by
 1) determining the brightest `N_max` stars in img_from and img_to
 2) calculating all triangles connecting these stars
 3) finding the best matching triangle between the two sets via the ratio of hypotenuses
-4) determining the rigid tranform via the kabsch alsgorithm (allowing for scale)
+4) determining the rigid tranform via the kabsch algorithm
 4a) The transformed star positions are checked against the ones found in img_to and diagnostic output is generated in `verbose` mode.
 4b) If (dist_limit > 0), the Kabsch algorithm is run again, this time with all matching stars for improved precision. 
 5) Finally warping `img_from` to the coordinates of `img_to`
@@ -186,6 +186,7 @@ function align_frame(img_to, img_from;
         [source_from.xcenter, source_from.ycenter] => [source_to.xcenter, source_to.ycenter]
     end
     # Determine a rigid transform.
+    # TODO: Support similarity transform (scale = true)
     tfm = kabsch(last.(point_map) => first.(point_map); scale=false)
 
     stars_used = -1 # just to be returned as diagnostic information to routines outside
