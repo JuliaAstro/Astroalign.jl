@@ -1,0 +1,11 @@
+[deps]
+AstroImages = "fe3fc30c-9b16-11e9-1c73-17dabf39f4ad"
+Astroalign = "7f4629bd-323a-4fad-ad42-4ee56350f27f"
+Downloads = "f43a241f-c20a-4ad4-852c-f6b1247861c6"
+FITSIO = "525bcba6-941b-5504-bd06-fd0dc1a4d2eb"
+FileIO = "5789e2e9-d7fb-5bc7-8068-2c6fae9b9549"
+Images = "916415d5-f1e6-5110-898d-aaa5f9f070e0"
+MultifileArrays = "18a1d154-b244-4181-98dd-8f3786468fa3"
+NDTools = "98581153-e998-4eef-8d0d-5ec2c052313d"
+Plots = "91a5bcdd-55d7-5caf-9e0b-520d859cae80"
+View5D = "90d841e0-6953-4e90-9f3a-43681da8e949"
