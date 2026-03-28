@@ -14,13 +14,54 @@ function warp_assign!(result, weights, src, x,y, tfm, supersample)
     end
 end
 
+# the same but with linear interpolation
+function warp_assign_interp!(result, weights, src, x,y, tfm, supersample)
+    src_pos = SVector{2}(x,y) # [x, y]
+    # Forward transform source coord to dest coord
+    dest_coord = tfm(src_pos)
+
+    fx = dest_coord[1] * supersample
+    fy = dest_coord[2] * supersample
+    # Map to supersampled grid
+    px = floor(Int, fx)
+    wx = fx .- px
+    py = floor(Int, fy)
+    wy = fy .- py
+
+    s = src[x, y]
+    if checkbounds(Bool, result, px, py)
+        w = (1-wx)*(1-wy)
+        @inbounds result[px, py] += w*s
+        @inbounds weights[px, py] += w
+    end
+    if checkbounds(Bool, result, px+1, py)
+        w = wx*(1-wy)
+        @inbounds result[px+1, py] += w*s
+        @inbounds weights[px+1, py] += w
+    end
+    if checkbounds(Bool, result, px, py+1)
+        w = (1-wx)*wy
+        @inbounds result[px, py+1] += w*s
+        @inbounds weights[px, py+1] += w
+    end
+    if checkbounds(Bool, result, px+1, py+1)
+        w = wx*wy
+        @inbounds result[px+1, py+1] += w*s
+        @inbounds weights[px+1, py+1] += w
+    end
+end
+
 """
     forward_warp!(result, weights, src, tfm, dest_size; supersample = 1)
 
 Forward-mode warp: iterate over source, scatter to destination with accumulation.
 """
-function forward_warp!(result, weights, src::AbstractMatrix{T}, tfm; supersample = 1) where T
-    warp_assign!.(Ref(result), Ref(weights), Ref(src), axes(src, 1), transpose(axes(src, 2)), Ref(tfm), supersample)
+function forward_warp!(result, weights, src::AbstractMatrix{T}, tfm; use_interp=false, supersample = 1) where T
+    if (use_interp)
+        warp_assign_interp!.(Ref(result), Ref(weights), Ref(src), axes(src, 1), transpose(axes(src, 2)), Ref(tfm), supersample)
+    else
+        warp_assign!.(Ref(result), Ref(weights), Ref(src), axes(src, 1), transpose(axes(src, 2)), Ref(tfm), supersample)
+    end
     return result, weights
 end
 
@@ -29,15 +70,15 @@ end
 
 Forward-mode warp: iterate over source, scatter to destination with accumulation.
 """
-function forward_warp(src::AbstractMatrix{T}, tfm, dest_size; supersample = 1) where T
+function forward_warp(src::AbstractMatrix{T}, tfm, dest_size; use_interp=false, supersample = 1) where T
     out_H, out_W = dest_size .* supersample
     result = zeros(eltype(src), out_H, out_W)
-    weights = zeros(Int, out_H, out_W)
-    forward_warp!(result, weights, src, tfm; supersample)
+    weights = zeros(eltype(src), out_H, out_W)
+    forward_warp!(result, weights, src, tfm; use_interp=use_interp, supersample)
 end
 
 """
-    drizzle_warp!(result, drizzle_mask, bayer_mosaic, tfm; supersample = 2.0, bayer_pattern = "RGGB")
+    drizzle_warp!(result, drizzle_mask, bayer_mosaic, tfm; use_interp=false, supersample = 2.0, bayer_pattern = "RGGB")
 
 Performs the forward warping of in input bayer mosaic (`bayer_mosaic`) with the transformation as defined by `tfm`, but originally computed on the gridded data (i.e. the top left 4 pixels forming pixel 1).
 
@@ -47,11 +88,12 @@ Performs the forward warping of in input bayer mosaic (`bayer_mosaic`) with the 
 * `drizzle_mask`: An output array into which the value one is added at assigned pixel locations.
 * `bayer_mosaic`: The input bayer-patter image to grid onto (add into) a color output
 * `tfm`: The transformation, but calculated on the 2x2 binned data.
+* `use_interp`: if `true` linar interpolation will be used on destination.
 * `supersample`: The factor to supersample. The default of 2 means that the output size corresponds to the input size.
 * `bayer_pattern`: The order of the pixels in the bayer pattern. Allowed tags are R,G and B.
 
 """
-function drizzle_warp!(result, drizzle_mask, bayer_mosaic, tfm; supersample = 2.0, bayer_pattern = "RGGB")
+function drizzle_warp!(result, drizzle_mask, bayer_mosaic, tfm; supersample = 2.0, use_interp=false, bayer_pattern = "RGGB")
     bayer_index = get_bayer_index(bayer_pattern)
     sindex_x = (1, 2, 1, 2)
     sindex_y = (1, 1, 2, 2)
@@ -65,7 +107,7 @@ function drizzle_warp!(result, drizzle_mask, bayer_mosaic, tfm; supersample = 2.
         my_src_shift = Translation([sx - 2, sy - 2])
         my_zoom = AffineMap([supersample 0; 0 supersample],[0, 0])
         tfm_both = compose(my_src_shift, compose(my_zoom, inv(tfm)))
-        forward_warp!(dst_mat, dst_mask_mat, src_mat, tfm_both)
+        forward_warp!(dst_mat, dst_mask_mat, src_mat, tfm_both, use_interp=use_interp)
     end 
     return result
 end
@@ -80,6 +122,7 @@ end
         [N_max] 
         [dist_limit],
         [use_fitpos],
+        [use_interp],
         [drizzle_supersampling],
         [to_warp],
         [verbose],
@@ -109,6 +152,7 @@ This is achieved by:
 * `use_fitpos`: if `true` (default), the fit results are used in the position estimate for the triangles and thus the alignment.
 * `N_max`: Maximal Number of (brightest) sources to consider for alignment (default is 10)
 * `dist_limit`: If larger than zero, this will trigger a second stage of alignment considering not only 3 matching sources (default) but all sources in the list matching approximately up to this distance in pixels.
+* `use_interp`: if `true` linar interpolation will be used on destination.
 * `drizzle_supersampling`: If provided this factor (e.g. Float64) will determine the supersampling to use for the drizzle warp function
 * `to_warp = nothing`: If provided, the `to_warp` will be warped (not for alignment!). This can also be a mosaic (bayer pattern for the drizzle algorithm). Default is `nothing`.
 * `verbose = true`:  If true (default) some status information is provided during computations
@@ -147,11 +191,13 @@ y2_aligned, params = align_frame(y1, y2)
 function align_frame(img_to, img_from;
     box_size = _compute_box_size(img_to),
     ap_radius = 0.6 * first(box_size),
-    f = PSF(),
-    min_fwhm = box_size .÷ 5,
+    f = PSF(), # com_psf
+    min_fwhm = box_size .÷ 5, # 25
     nsigma = 1,
-    N_max = 10, 
+    N_max = 20, 
+    N_best = 7,
     use_fitpos = true,
+    use_interp=false,
     drizzle_supersampling = nothing,
     to_warp = nothing,
     dist_limit = 0,
@@ -159,11 +205,25 @@ function align_frame(img_to, img_from;
     ref_info = nothing,
     bayer_pattern = "RGGB",
 )
+# @show size(img_to)
+# @show img_to[1:10]
+# @show size(img_from)
+# @show img_from[1:10]
+# @show box_size
+# @show ap_radius
+# @show min_fwhm
+# @show nsigma
+# @show N_max
+# @show N_best
+# @show use_fitpos
+# @show dist_limit
 
     # Step 1: Identify control points
-
     phot_to = isnothing(ref_info) ? _photometry(img_to, box_size, ap_radius, min_fwhm, nsigma, f; N_max, filter_fwhm = true, use_fitpos) : ref_info[1]
     phot_from = _photometry(img_from, box_size, ap_radius, min_fwhm, nsigma, f; N_max, filter_fwhm = true, use_fitpos)
+
+    med_fwhm_x = median_fwhm(phot_from,1)
+    med_fwhm_y = median_fwhm(phot_from,2)
 
     if isempty(phot_to)
         @warn "The photometry algorithm did not find any stars in `img_to`. Adjust your input parameters!"
@@ -182,6 +242,7 @@ function align_frame(img_to, img_from;
         return ([], (;))
     end
 
+    tfm = nothing # overwritten below
     # Step 2: Calculate invariants (if needed)
     C_to, ℳ_to = isnothing(ref_info) ? triangle_invariants(phot_to) : ref_info[2]
     C_from, ℳ_from = triangle_invariants(phot_from)
@@ -197,14 +258,14 @@ function align_frame(img_to, img_from;
     # Determine a rigid transform.
     # TODO: Support similarity transform (scale = true)
     tfm = kabsch(last.(point_map) => first.(point_map); scale=false)
-
     stars_used = -1 # Just to be returned as diagnostic information to routines outside
 
     # The code below was first in an if clause (dist_limit > 0), but it is now anyway run for diagnostic purposes.
     good_list = []
-    dist2_limit = (dist_limit==0) ? 2.0 : abs2(dist_limit)
+    dist2_limit = (dist_limit==0) ? 4.0 : abs2(dist_limit)
     # sort!(phot_to; by = x -> x.aperture_f.psf_params.amp, rev = true)
 
+    # refine the alignment using many stars. The correspondences are identified by the previous 3-star (triangle) alignment
     for pt in phot_to
         best_dist2 = Inf
         best_coord = [0.0, 0.0]
@@ -235,13 +296,21 @@ function align_frame(img_to, img_from;
     if (dist_limit > 0) && length(good_list) > 0
         tfm = kabsch(last.(good_list) => first.(good_list); scale = false)
     end
+    ref_info = isnothing(ref_info) ? (phot_to, (C_to, ℳ_to)) : ref_info
+    
+    if (verbose)
+        myangle = atan(tfm.linear[3], tfm.linear[1])
+        myshift = tfm.translation
+        # the kabsch rotation and shift is to be interpreted around (0,0)
+        println("valid stars: $(length(phot_to)), angle: $(myangle*180/pi) deg, shift: $myshift pixels")
+    end
 
     reduced_size = size(img_to)[1:2]
 
     drizzle_mask = nothing # Since it is returned
     warped = nothing # To be returned
 
-    if isnothing(drizzle_supersampling) 
+    if isnothing(drizzle_supersampling) || (drizzle_supersampling == 1)
         if isnothing(to_warp)
             warped = warp(img_from, tfm, axes(img_to))
         else
@@ -261,17 +330,18 @@ function align_frame(img_to, img_from;
     else
         dst_size = round.(Int, ((reduced_size .* drizzle_supersampling)...,3))
         isnothing(to_warp) && error("For drizzle you need to provide a drizzle_supersample! and a to_warp input, the bayr-pattern mosaic input")
-        drizzle_mask = similar(to_warp, Int, dst_size)
+        drizzle_mask = similar(to_warp, eltype(to_warp), dst_size)
         drizzle_mask .= 0
         result = similar(to_warp, dst_size)
         result .= 0
-        warped = drizzle_warp!(result, drizzle_mask,to_warp, tfm; supersample = drizzle_supersampling, bayer_pattern)
+        warped = drizzle_warp!(result, drizzle_mask,to_warp, tfm; use_interp=use_interp, supersample = drizzle_supersampling, bayer_pattern)
     end
 
-    ref_info = isnothing(ref_info) ? (phot_to, (C_to, ℳ_to)) : ref_info
 
     return (
         warped,
+        drizzle_mask,
+        ref_info, # For convenience
         (;
             point_map,
             tfm,
@@ -279,9 +349,9 @@ function align_frame(img_to, img_from;
             ℳ_to,
             C_from,
             ℳ_from,
-            drizzle_mask,
             stars_used,
-            ref_info, # For convenience
+            med_fwhm_x,
+            med_fwhm_y
        )
     )
 end

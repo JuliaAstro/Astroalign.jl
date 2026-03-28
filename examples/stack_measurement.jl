@@ -14,7 +14,7 @@ using MultifileArrays: load_series # add https://github.com/JuliaIO/MultifileArr
 include("preprocess_helpers.jl") # for background subtraction and field flatness correction
 
 if (false) # run this code to download the data and store it locally
-    # Here is some example data taken on my dwarf 3 telescope:
+    # Here is some example data taken on a dwarf 3 telescope:
     using Downloads
     mydir = mktempdir()
     zip_url = "https://cloud.uni-jena.de/s/9dqYsosX2DxTT5G/download"
@@ -39,8 +39,26 @@ data = correct_dark_flat(data, dark, flat); # conversion to Float32 seems essent
 
 box_size = (15, 15)  
 ap_radius = 0.6 * first(box_size);
-stacked_d, all_params_d = stack_many_drizzle(data; dist_limit = 2, # use only one triangle
-        box_size, ap_radius, min_sigma = 1.5, nsigma = 1, ref_slice = 1, drizzle_supersampling = 2.0);
+min_fwhm = 1.5
+N_max = 30
+use_interp = true;
+f = Astroalign.PSF()
+# f = com_psf
+@time stacked_d, all_params_d = stack_many(data; use_interp=use_interp, use_drizzle=true, dist_limit = 2, f=f, N_max=N_max,
+        box_size, ap_radius, min_sigma = 2.5, nsigma = 1, min_fwhm = min_fwhm, drizzle_supersampling = 2.0);
+
+all_stars_used, all_shift_x, all_shift_y, all_med_fwhms_x, all_med_fwhms_y, all_rotation = collect_info(all_params_d);
+plot(all_shift_x, title="Shifts", xlabel="frame #", ylabel="shift / pixel", label="X");plot!(all_shift_y, label="Y")
+plot(all_med_fwhms_x, title="FWHMs", xlabel="frame #", ylabel="shift / pixel", label="X");plot!(all_med_fwhms_y, label="Y")
+plot(all_rotation .* (180/pi), title="rotation", xlabel="frame #", ylabel="angle / deg", label="X")
+
+single_channel = data[2:2:end, 1:2:end, :];
+@time stacked_s, all_params_s = stack_many(single_channel; use_drizzle=false, dist_limit = 2, f=f, N_max=N_max,
+        box_size, ap_radius, min_sigma = 1.5, nsigma = 1, min_fwhm = min_fwhm);
+
+all_stars_used, all_shift_x, all_shift_y, all_med_fwhms_x, all_med_fwhms_y, all_rotation = collect_info(all_params_s);
+plot(all_shift_x, title="Shifts", xlabel="frame #", ylabel="shift / pixel", label="X");plot!(all_shift_y, label="Y")
+plot(all_med_fwhms_x, title="FWHMs", xlabel="frame #", ylabel="shift / pixel", label="X");plot!(all_med_fwhms_y, label="Y")
 
 prepare_for_viewer(v) = sqrt.(max.(0, reshape(v .- median(v, dims=(1,2)), (size(v)[1:2]...,1,size(v,3)))))
 prepare_for_display(v, m=10.0) = m .*colorview(RGB,permutedims(prepare_for_viewer(v), (4, 2, 1, 3))[:,:,:,1])
