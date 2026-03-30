@@ -64,7 +64,7 @@ end
     img_from = Data.img_from
 
     img_aligned, _, ref_info, p = align_frame(img_to, img_from;
-        f = Astroalign.PSF(params = (x = 6, y = 6, fwhm = 3))
+        f = Astroalign.PSF(params = (x = 6, y = 6, fwhm = 3)), verbose=false
     );
 
     @test img_aligned isa AbstractMatrix
