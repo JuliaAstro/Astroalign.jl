@@ -66,21 +66,24 @@ const init_code = quote
         [(xcenter=0, ycenter= 1), (xcenter=3, ycenter=-3), (xcenter=1, ycenter=-5)],
     ],
 
+    # lengths are (5.0, 4.0, 3.0)  and (sqrt(37), 4, sqrt(5)) and (3, sqrt(5), sqrt(8)) and (sqrt(37), sqrt(8), 5) 
+    # old system was: 5/4 √37/4    3/√8 √37/5
+    # 4/3   4/√5 √8/√5   5/√8
     invariants = [
-        5/4 √37/4    3/√8 √37/5
-        4/3   4/√5 √8/√5   5/√8
+        3/4 sqrt(5)/4 sqrt(8)/sqrt(5) 5/sqrt(8)
+        4/5 4/sqrt(37) sqrt(5)/3 sqrt(8)/sqrt(37)
     ],
 
     matched_triangle_to = [
-        (xcenter = 0, ycenter = 0),
         (xcenter = 0, ycenter = 4),
         (xcenter = 3, ycenter = 0),
+        (xcenter = 0, ycenter = 0),
     ],
 
     matched_triangle_from = [
-        (xcenter = 0, ycenter = -3),
         (xcenter = 0, ycenter =  1),
         (xcenter = 3, ycenter = -3),
+        (xcenter = 0, ycenter = -3),
     ],
 )
 end

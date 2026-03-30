@@ -97,7 +97,6 @@ function triangle_distances(pa,pb,pc)
     ab = euclidean(a, b); bc = euclidean(b, c); ca = euclidean(c, a)
     di = get_largest_distance_ids(ab,bc,ca)
     # return a,b,c cyclically shifted to start with the largest distance
-
     return (ab,bc,ca)[[di...]]
 end
 

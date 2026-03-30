@@ -66,7 +66,8 @@ end
 # conciders the N brightests stars only
 # returns a tuple of fwhm_x and fwhm_y
 function median_fwhm(param, idx=1) 
-    median([p.aperture_f[1].fwhm[idx] for p in param])
+    # the mod operation ensures that this also works for only a single fwhm scalar to fit
+    median([p.aperture_f[1].fwhm[mod(idx-1, length(p.aperture_f[1].fwhm))+1] for p in param])
 end
 
 """

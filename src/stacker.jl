@@ -143,7 +143,11 @@ function stack_many(input_stack; use_drizzle=true, use_interp=false, drizzle_sup
     reduced_size = size(ref_mono)[1:2]
 
     Nimgs = size(input_stack, 3)
-    dst_size = round.(Int, ((reduced_size .* drizzle_supersampling)..., 3, Nimgs))
+    NZ = 3
+    if (!use_drizzle)
+        NZ = 1
+    end
+    dst_size = round.(Int, ((reduced_size .* drizzle_supersampling)..., NZ, Nimgs))
     all_params = []
     all_results = similar(input_stack, dst_size)
     all_masks = similar(input_stack, eltype(all_results), dst_size)
@@ -157,6 +161,7 @@ function stack_many(input_stack; use_drizzle=true, use_interp=false, drizzle_sup
             use_interp=use_interp, drizzle_supersampling = drizzle_supersampling,
             to_warp = src,
             ref_info = ref_info,
+            verbose = verbose,
             kwargs...
         )
 
@@ -210,7 +215,7 @@ end
 
 function remove_outliers(all_results, all_masks; verbose = true, stack_dim = 4, min_sigma = 2.0)
         verbose && println("... summing results")
-        divisor = max.(eltype(all_masks)(1f-8), sum(all_masks; dims = stack_dim))
+        divisor = max.(eltype(all_results)(1f-8), sum(all_masks; dims = stack_dim))
         result = sum(all_results; dims = stack_dim) ./ divisor
 
         verbose && println("... removing outliers")
