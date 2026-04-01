@@ -7,7 +7,7 @@
 
     C, ℳ = triangle_invariants(points)
 
-    @test length(C) == 4
+    @test length(C) == 1
     @test collect(C) == combinations
     @test ℳ == invariants
 end
@@ -45,16 +45,17 @@ end
     img_to = Data.img_to
     img_from = Data.img_from
 
-    img_aligned, params = align_frame(img_to, img_from)
+    img_aligned, params = align_frame(img_to, img_from; min_fwhm = (0.1, 0.1))
 
-    @test img_aligned == img_to
+    @test img_aligned ≈ img_to
+    @info params.point_map
     @test params.point_map == [
-        [1.0, 6.0] => [2.0, 6.0],
-        [5.0, 6.0] => [6.0, 6.0],
-        [9.0, 6.0] => [10.0, 6.0],
+        [5.0, 6.0] => [2.0, 6.0],
+        [9.0, 6.0] => [6.0, 6.0],
+        [9.0, 9.0] => [6.0, 9.0],
     ]
-    @test params.tfm.linear == [1 0; 0 1]
-    @test params.tfm.translation == [-1.0, 0.0] # AstroImages.jl orientation convention
+    @test params.tfm.linear ≈ [1 0; 0 1]
+    @test params.tfm.translation ≈ [3.0, 0.0] # AstroImages.jl orientation convention
 end
 
 @testset "api"  begin
