@@ -70,10 +70,10 @@ function _photometry(img, box_size, ap_radius, min_fwhm, nsigma, f; N_max = 10, 
     # Define apertures
     aps = CircularAperture.(sources.y, sources.x, ap_radius)
 
-    # fit using the PSF model or determine the center of mass
+    # Fit using the PSF model
     phot = photometry(aps, subt; f)
 
-    # improve the coordinates estimate with the fit results
+    # Improve the coordinates estimate with the fit results
     phot = (use_fitpos) ? [(p..., xcenter = p.xcenter + p.aperture_f.psf_params.x - (size(ap)[1]÷2+1),
             ycenter = p.ycenter + p.aperture_f.psf_params.y - (size(ap)[2]÷2+1))
             for (p, ap) in zip(phot, aps)] : phot;
