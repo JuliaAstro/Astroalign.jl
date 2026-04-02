@@ -48,7 +48,6 @@ end
     img_aligned, params = align_frame(img_to, img_from; min_fwhm = (0.1, 0.1))
 
     @test img_aligned ≈ img_to
-    @info params.point_map
     @test params.point_map == [
         [5.0, 6.0] => [2.0, 6.0],
         [9.0, 6.0] => [6.0, 6.0],

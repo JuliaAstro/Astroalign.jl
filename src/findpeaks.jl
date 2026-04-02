@@ -70,6 +70,7 @@ function _photometry(img, box_size, ap_radius, min_fwhm, nsigma, f; N_max = 10, 
     # Define apertures
     aps = CircularAperture.(sources.y, sources.x, ap_radius)
 
+    # Fit using the PSF model
     phot = photometry(aps, subt; f)
 
     if filter_fwhm

@@ -16,7 +16,7 @@ This is achieved via the following algorithm:
 2. Calculate all triangular asterisms formed from these sources.
 3. Find the best matching triangle between the two sets of images based on the invariant metric descriptor defined in [Beroiz et al. (2020)](https://ui.adsabs.harvard.edu/abs/2020A%26C....3200384B/abstract).
 4. Compute the rigid transform via the Kabsch algorithm.
-5. Finally, warp `img_from` to the coordinates of `img_to`
+5. Finally, warp `img_from` to the coordinates of `img_to`.
 
 # Parameters
 
@@ -25,7 +25,7 @@ This is achieved via the following algorithm:
 - `f`: The function to compute within each aperture. Defaults to a 2D Gaussian fitted to the aperture center. See the [Source characterization](https://juliaastro.org/Astroalign.jl/notebook.html#Source-characterization) section of the accompanying Pluto.jl notebook for more.
 - `min_fwhm`: The minimum FWHM (in pixels) that an extracted point source must have to be considered as a control point. Defaults to a fifth of the width of the first image. See [PSFModels.jl > Fitting data](@extref PSFModels Fitting-data) for more.
 - `nsigma`: The number of standard deviations above the estimated background that a source must be to be considered as a control point. Defaults to 1. See [Photometry.jl > Source Detection Algorithms](@extref Photometry Source-Detection-Algorithms) for more.
-- `N_max`: Maximal Number of (brightest) sources to consider for alignment (default is 10)
+- `N_max`: Maximal Number of (brightest) sources to consider for alignment (default is 10).
 """
 function align_frame(img_to, img_from;
     box_size = _compute_box_size(img_to),
@@ -66,5 +66,3 @@ function align_frame(img_to, img_from;
        )
     )
 end
-
-
