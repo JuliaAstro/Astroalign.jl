@@ -63,10 +63,10 @@ end
     img_to = Data.img_to
     img_from = Data.img_from
 
-    img_aligned, dm, ref_info, p = align_frame(img_to, img_from;
+    img_aligned, p = align_frame(img_to, img_from;
         f = Astroalign.PSF(params = (x = 6, y = 6, fwhm = 3)),
         verbose = false,
-    );
+    )
 
     @test img_aligned isa AbstractMatrix
     @test propertynames(p) == (
@@ -76,8 +76,5 @@ end
         :ℳ_to,
         :C_from,
         :ℳ_from,
-        :stars_used,
-        :med_fwhm_x,
-        :med_fwhm_y,
     )
 end
