@@ -6,6 +6,6 @@
 [![Aqua QA](https://raw.githubusercontent.com/JuliaTesting/Aqua.jl/master/badge.svg)](https://github.com/JuliaTesting/Aqua.jl)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-An experimental implementation of [astroalign](https://github.com/quatrope/astroalign) in Julia.
+An experimental reimplementation of [astroalign](https://github.com/quatrope/astroalign) in Julia.
 
 Credit: [_Beroiz, M., Cabral, J. B., & Sanchez, B. (2020)_](https://ui.adsabs.harvard.edu/abs/2020A%26C....3200384B/abstract)

@@ -45,17 +45,16 @@ end
     img_to = Data.img_to
     img_from = Data.img_from
 
-    img_aligned, params = align_frame(img_to, img_from; min_fwhm = (0.1, 0.1), verbose = false)
+    img_aligned, dm, ref_info, params = align_frame(img_to, img_from; min_fwhm = (0.1, 0.1), verbose = false)
 
     @test img_aligned ≈ img_to
-    @info params.point_map
     @test params.point_map == [
         [5.0, 6.0] => [2.0, 6.0],
-        [9.0, 6.0] => [6.0, 6.0],
         [9.0, 9.0] => [6.0, 9.0],
+        [9.0, 6.0] => [6.0, 6.0],
     ]
     @test params.tfm.linear ≈ [1 0; 0 1]
-    @test params.tfm.translation ≈ [3.0, 0.0] # AstroImages.jl orientation convention
+    @test params.tfm.translation ≈ [3.0, 0.0]
 end
 
 @testset "api"  begin
@@ -64,10 +63,10 @@ end
     img_to = Data.img_to
     img_from = Data.img_from
 
-    img_aligned, p = align_frame(img_to, img_from;
+    img_aligned, dm, ref_info, p = align_frame(img_to, img_from;
         f = Astroalign.PSF(params = (x = 6, y = 6, fwhm = 3)),
         verbose = false,
-    )
+    );
 
     @test img_aligned isa AbstractMatrix
     @test propertynames(p) == (
