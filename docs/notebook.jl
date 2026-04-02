@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.20.22
+# v0.20.24
 
 using Markdown
 using InteractiveUtils
@@ -20,7 +20,7 @@ end
 begin
 	import Pkg
 	Pkg.resolve()
-	Pkg.activate(joinpath(dirname(@__DIR__), "docs"))
+	Pkg.activate(Base.current_project())
 	Pkg.instantiate()
 	
 	using Revise
@@ -73,7 +73,7 @@ In this particular case, `img_from` is rotated clockwise, and shifted vertically
 """
 
 # ╔═╡ f5e32327-6eaa-44f6-a40f-49aaef93b094
-@doc align_frame
+# @doc align_frame
 
 # ╔═╡ a1cb22fc-e956-4cf7-aafc-0168da23e556
 md"""
