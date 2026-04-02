@@ -49,9 +49,9 @@ end
 
     @test img_aligned ≈ img_to
     @test params.point_map == [
-        [5.0, 6.0] => [2.0, 6.0],
-        [9.0, 6.0] => [6.0, 6.0],
-        [9.0, 9.0] => [6.0, 9.0],
+        [9.0, 9.0] => [6.0, 9.0], 
+        [5.0, 6.0] => [2.0, 6.0], 
+        [9.0, 6.0] => [6.0, 6.0]
     ]
     @test params.tfm.linear ≈ [1 0; 0 1]
     @test params.tfm.translation ≈ [3.0, 0.0]
@@ -71,6 +71,8 @@ end
     @test propertynames(p) == (
         :point_map,
         :tfm,
+        :correspondences,
+        :inlier_idxs,
         :C_to,
         :ℳ_to,
         :C_from,
