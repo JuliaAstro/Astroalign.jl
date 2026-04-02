@@ -238,7 +238,7 @@ end
     img_to    = warp(master, tfm1_back, (1:512, 1:512))
 
     # img_from: same master centre (1000.5, 1000.5), rotated 22° CCW
-    θ          = 22.0 * π / 180
+    θ          = deg2rad(22)
     c_θ, s_θ   = cos(θ), sin(θ)
     R_rot      = [c_θ -s_θ; s_θ c_θ]           # rotation in (row, col) space
     sub_ctr    = SVector(256.5, 256.5)
