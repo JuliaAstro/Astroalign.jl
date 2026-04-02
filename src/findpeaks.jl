@@ -29,6 +29,11 @@ end
 
 (p::PSF)(img) = fit_psf(img, p)
 
+"""
+    fit_psf(img_ap, p)
+
+Fits a point spread function model to a region of interest (`img_ap`) using the Optim.jl toolbox.
+"""
 function fit_psf(img_ap, p)
     # Normalize
     psf_data = collect(Float32, img_ap)
@@ -51,16 +56,16 @@ function fit_psf(img_ap, p)
     params = (; x, y, fwhm)
 
     # Fit
-    psf_params, psf_model = fit(p.model, params, psf_data; func_kwargs=p.func_kwargs, p.kwargs...)
+    psf_params, psf_model = fit(p.model, params, psf_data; func_kwargs = p.func_kwargs, p.kwargs...)
 
     return (; psf_params, psf_model, psf_data)
 end
 
 # Internal function used by `align`
 # Calls to `Photometry.photometry` with reasonable defaults
-function _photometry(img, box_size, ap_radius, min_fwhm, nsigma, f; filter_fwhm)
+function _photometry(img, box_size, ap_radius, min_fwhm, nsigma, f; N_max = 10, filter_fwhm)
     # Sources, background subtracted image, background
-    sources, subt, _ = get_sources(img; box_size, nsigma)
+    sources, subt, _ = get_sources(img; box_size, nsigma, N_max)
 
     # Define apertures
     aps = CircularAperture.(sources.y, sources.x, ap_radius)
