@@ -1,10 +1,11 @@
 module Astroalign
 
 using Combinatorics: combinations
-using CoordinateTransformations: kabsch
+using ConsensusFitting: ransac
+using CoordinateTransformations: kabsch, AffineMap
 using Distances: euclidean
 using ImageTransformations: warp
-using NearestNeighbors: nn, KDTree
+using NearestNeighbors: nn, knn, KDTree
 using PSFModels: gaussian, fit
 using Photometry:
     estimate_background,
