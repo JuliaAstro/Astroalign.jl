@@ -250,10 +250,12 @@ function align_frame(img_to, img_from;
     # Step 3: Select nearest
     sol_to, sol_from = find_nearest(C_to, ℳ_to, C_from, ℳ_from)
 
-    # Transform
+    # Step 4: Determine a rigid transform
+    # TODO: Support similarity transform (scale = true)
     point_map = map(sol_to, sol_from) do source_to, source_from
         [source_from.xcenter, source_from.ycenter] => [source_to.xcenter, source_to.ycenter]
     end
+    tfm = kabsch(last.(point_map) => first.(point_map); scale = false)
 
     # Determine a rigid transform.
     # TODO: Support similarity transform (scale = true)

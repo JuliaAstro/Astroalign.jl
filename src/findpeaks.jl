@@ -67,7 +67,7 @@ function fit_psf(img_ap, p)
     params = (; x, y, fwhm)
 
     # Fit
-    psf_params, psf_model = fit(p.model, params, psf_data; func_kwargs=p.func_kwargs, p.kwargs...)
+    psf_params, psf_model = fit(p.model, params, psf_data; func_kwargs = p.func_kwargs, p.kwargs...)
 
     return (; psf_params, psf_model, psf_data)
 end
