@@ -78,7 +78,7 @@ function align_frame(img_to, img_from;
         correspondences, fittingfn, _correspondence_distfn, 2, Float64(ransac_threshold);
     )
 
-    # Step 5: Refine with solution Kabsch / Umeyama on all inliers
+    # Step 5: Refine solution with Kabsch / Umeyama on all inliers
     #   kabsch(to_pts => from_pts) gives backward transform: to → from (needed by warp)
     pts_from = correspondences[1:2, inlier_idxs]
     pts_to   = correspondences[3:4, inlier_idxs]
