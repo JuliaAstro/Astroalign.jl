@@ -100,15 +100,12 @@ function to_subpixel(phot, aps)
     # Widen column type for x and y coords
     t = Table(phot; xcenter = float.(phot.xcenter), ycenter = float.(phot.ycenter))
 
-    # Fields to update
-    xcenter = t.xcenter
-    ycenter = t.ycenter
-
-    # TODO: Performance. Maybe set a flag to just use the first one if they are all the same size
-    for (i, (ap_f, x, y, ap)) in enumerate(zip(t.aperture_f, phot.xcenter, phot.ycenter, aps))
+    # Update xcenter and ycenter using fitted values
+    for (i, (ap_f, ap)) in enumerate(zip(t.aperture_f, aps))
         psf_params = ap_f.psf_params
-        xcenter[i] = x + psf_params.x - (size(ap, 1) ÷ 2 + 1)
-        ycenter[i] = y + psf_params.y - (size(ap, 2) ÷ 2 + 1)
+        t.xcenter[i] += psf_params.x - (size(ap, 1) ÷ 2 + 1)
+        t.ycenter[i] += psf_params.y - (size(ap, 2) ÷ 2 + 1)
     end
-    return Table(phot; xcenter, ycenter)
+
+    return t
 end
