@@ -63,7 +63,7 @@ end
 
 # Internal function used by `align`
 # Calls to `Photometry.photometry` with reasonable defaults
-function _photometry(img, box_size, ap_radius, min_fwhm, nsigma, f; N_max = 10, filter_fwhm, use_fitpos = true)
+function _photometry(img, box_size, ap_radius, min_fwhm, nsigma, f; N_max = 10, filter_fwhm = true, use_fitpos = true)
     # Sources, background subtracted image, background
     sources, subt, _ = get_sources(img; box_size, nsigma, N_max)
 
@@ -89,7 +89,13 @@ function _photometry(img, box_size, ap_radius, min_fwhm, nsigma, f; N_max = 10, 
     return phot
 end
 
-# Convert from aperture coordinates to image coordinates
+"""
+    to_subpixel(phot, aps)
+
+Creates a new photometry table that is identical to `phot`, but with the x and y centers replaced with their associated fitted values.
+
+Requires the list of apertures `aps` that were used for the initial photometry to do the necessary conversion from aperture coordinates to image coordinates.
+"""
 function to_subpixel(phot, aps)
     # Widen column type for x and y coords
     t = Table(phot; xcenter = float.(phot.xcenter), ycenter = float.(phot.ycenter))
