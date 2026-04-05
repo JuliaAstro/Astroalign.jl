@@ -9,6 +9,7 @@
         [scale],
         [ransac_threshold],
         [k_nearest],
+        [use_fitpos],
     )
 
 Align `img_from` onto `img_to`, assuming both images are related via a rigid
@@ -44,6 +45,7 @@ This is achieved via the following algorithm:
 - `scale`: If `true`, fit a similarity transformation (rotation + isotropic scale + translation) instead of a rigid transformation (rotation + translation only). Defaults to `false`.
 - `ransac_threshold`: Pixel-distance threshold below which a correspondence is classified as an inlier by RANSAC. Defaults to `3.0`.
 - `k_nearest`: Number of nearest triangles (in invariant space) to consider per from-triangle when building the correspondence pool. Larger values increase robustness at the cost of a larger RANSAC data set. Defaults to `5`.
+- `use_fitpos`: if `true` (default), the fit results are used in the position estimate for the triangles and thus the alignment.
 """
 function align_frame(img_to, img_from;
     box_size = _compute_box_size(img_to),
@@ -55,11 +57,12 @@ function align_frame(img_to, img_from;
     scale::Bool = false,
     ransac_threshold::Real = 3.0,
     k_nearest::Integer = 5,
+    use_fitpos = true,
 )
 
     # Step 1: Identify control points
-    phot_to   = _photometry(img_to,   box_size, ap_radius, min_fwhm, nsigma, f; filter_fwhm = true)
-    phot_from = _photometry(img_from, box_size, ap_radius, min_fwhm, nsigma, f; filter_fwhm = true)
+    phot_to = _photometry(img_to, box_size, ap_radius, min_fwhm, nsigma, f; N_max, filter_fwhm = true, use_fitpos)
+    phot_from = _photometry(img_from, box_size, ap_radius, min_fwhm, nsigma, f; N_max, filter_fwhm = true, use_fitpos)
 
     # Step 2: Calculate invariants
     C_to,   ℳ_to   = triangle_invariants(phot_to)

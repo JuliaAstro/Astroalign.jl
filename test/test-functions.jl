@@ -57,6 +57,38 @@ end
     @test params.tfm.translation ≈ [3.0, 0.0]
 end
 
+@testset "_photometry" begin
+    using Astroalign: _photometry, PSF
+
+    img_to = Data.img_to
+
+    phot_to = _photometry(
+        img_to,
+        5, # box_size
+        2, # ap_radius
+        0.1, # min_fwhm
+        1, # nsigma
+        PSF();
+        use_fitpos = false,
+    )
+
+    @test typeof(phot_to.xcenter) <: Vector{Int64}
+    @test typeof(phot_to.ycenter) <: Vector{Int64}
+
+    phot_to = _photometry(
+        img_to,
+        5, # box_size
+        2, # ap_radius
+        0.1, # min_fwhm
+        1, # nsigma
+        PSF();
+        use_fitpos = true,
+    )
+
+    @test typeof(phot_to.xcenter) <: Vector{Float64}
+    @test typeof(phot_to.ycenter) <: Vector{Float64}
+end
+
 @testset "api"  begin
     import Astroalign
 
