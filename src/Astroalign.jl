@@ -13,6 +13,7 @@ using Photometry:
     sigma_clip,
     CircularAperture,
     PeakMesh
+using TypedTables: Table
 
 export align_frame, get_sources, find_nearest, triangle_invariants
 

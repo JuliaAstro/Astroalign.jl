@@ -6,6 +6,7 @@
         [min_fwhm],
         [nsigma],
         [N_max],
+        [use_fitpos],
     )
 
 Align `img_from` onto `img_to`, assuming both images are related via a rigid transformation.
@@ -26,6 +27,7 @@ This is achieved via the following algorithm:
 - `min_fwhm`: The minimum FWHM (in pixels) that an extracted point source must have to be considered as a control point. Defaults to a fifth of the width of the first image. See [PSFModels.jl > Fitting data](@extref PSFModels Fitting-data) for more.
 - `nsigma`: The number of standard deviations above the estimated background that a source must be to be considered as a control point. Defaults to 1. See [Photometry.jl > Source Detection Algorithms](@extref Photometry Source-Detection-Algorithms) for more.
 - `N_max`: Maximal Number of (brightest) sources to consider for alignment (default is 10).
+- `use_fitpos`: if `true` (default), the fit results are used in the position estimate for the triangles and thus the alignment.
 """
 function align_frame(img_to, img_from;
     box_size = _compute_box_size(img_to),
@@ -34,10 +36,11 @@ function align_frame(img_to, img_from;
     min_fwhm = box_size .÷ 5,
     nsigma = 1,
     N_max = 10,
+    use_fitpos = true,
 )
     # Step 1: Identify control points
-    phot_to = _photometry(img_to, box_size, ap_radius, min_fwhm, nsigma, f; filter_fwhm = true)
-    phot_from = _photometry(img_from, box_size, ap_radius, min_fwhm, nsigma, f; filter_fwhm = true)
+    phot_to = _photometry(img_to, box_size, ap_radius, min_fwhm, nsigma, f; N_max, filter_fwhm = true, use_fitpos)
+    phot_from = _photometry(img_from, box_size, ap_radius, min_fwhm, nsigma, f; N_max, filter_fwhm = true, use_fitpos)
 
     # Step 2: Calculate invariants
     C_to, ℳ_to = triangle_invariants(phot_to)
