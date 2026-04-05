@@ -21,5 +21,6 @@ include("utils.jl")
 include("findpeaks.jl")
 include("register.jl")
 include("warp.jl")
+include("stacker.jl")
 
 end # module
