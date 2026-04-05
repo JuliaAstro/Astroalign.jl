@@ -20,6 +20,7 @@ export align_frame, get_sources, find_nearest, triangle_invariants
 include("utils.jl")
 include("findpeaks.jl")
 include("register.jl")
+include("psf.jl")
 include("warp.jl")
 
 end # module
