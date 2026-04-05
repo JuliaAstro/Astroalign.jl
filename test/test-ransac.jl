@@ -92,7 +92,7 @@ end
     t_fwd     = ((I - R_fwd) * center_rc) + δ_rc
     T_fwd     = AffineMap(R_fwd, t_fwd)
 
-    nstars = 18
+    nstars = 20
     # Stars randomly inside [100, 400] × [100, 400] in (row, col)
     stars_to_rc = [(rand(rng) * 300 + 100, rand(rng) * 300 + 100, rand(rng) * 0.5 + 0.5)
                    for _ in 1:nstars]
@@ -156,7 +156,7 @@ end
     t_fwd     = center_rc - M_fwd * center_rc + δ_rc
     T_fwd     = AffineMap(M_fwd, t_fwd)
 
-    nstars = 18
+    nstars = 20
     stars_to_rc = [(rand(rng) * 200 + 150, rand(rng) * 200 + 150, rand(rng) * 0.5 + 0.5)
                    for _ in 1:nstars]
     stars_from_rc = map(stars_to_rc) do (r, c, amp)
