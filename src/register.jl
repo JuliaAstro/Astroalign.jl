@@ -17,22 +17,6 @@ function triangle_invariants(phot)
     return C, ℳ
 end
 
-"""
-    find_nearest(C_to, ℳ_to, C_from, ℳ_from)
-
-Return the closes pair of three points between the `from` and `to` frames in the invariant ``\\mathscr M`` space as computed by [`Astroalign.triangle_invariants`](@ref).
-"""
-function find_nearest(C_to, ℳ_to, C_from, ℳ_from)
-    # Find the nearest neighbors regarding the triangles
-    idxs, dists = nn(KDTree(ℳ_to), ℳ_from)
-    # Determine the best match:
-    idx_from = argmin(dists)
-    idx_to = idxs[idx_from]
-    sol_to = collect(C_to)[idx_to]
-    sol_from = collect(C_from)[idx_from]
-    return sol_to, sol_from
-end
-
 # Re-order the three vertices of a triangle so that:
 # 1. The apex (vertex opposite the longest edge) is last.
 # 2. The two base vertices are ordered counter-clockwise (positive cross product).
@@ -68,178 +52,148 @@ end
 """
     _build_correspondences(C_to, ℳ_to, C_from, ℳ_from; k = 5)
 
-Build a `4 × N` matrix of candidate point correspondences between the `from`
-and `to` frames, where each column is `[x_from; y_from; x_to; y_to]`.
+Build a `2 × 3 × 2 × N` array of candidate triangle-level correspondences
+between the `from` and `to` frames. The `C` and `ℳ` are the combinations of three
+points and their invariants as returned by [`Astroalign.triangle_invariants`](@ref).
 
-For each triangle in `from`, the `k` nearest triangles in `to` (measured in the
-invariant ``\\mathscr M`` space) are retrieved. The three vertex pairs from each
-matched triangle pair – ordered canonically via [`_canonical_vertex_order`](@ref) –
-contribute three columns to the output.  The resulting pool of candidate
-correspondences is suitable as the data matrix `x` for
-[`ConsensusFitting.ransac`](@extref).
+The axes are `[coord, vertex, frame, match]`:
+
+- `coord ∈ {1 = x, 2 = y}`
+- `vertex ∈ {1, 2, 3}` — canonical vertex index within the triangle
+- `frame ∈ {1 = from, 2 = to}`
+- `match` — index of the candidate triangle pair (``N`` total)
+
+So `out[:, v, 1, n]` is the `(x, y)` position of vertex `v` in the `from`
+frame for match `n`, and `out[:, v, 2, n]` is the corresponding position in
+the `to` frame.
+
+For each triangle in `from`, the `k` nearest triangles in `to` (measured in
+the invariant ``\\mathscr M`` space) are retrieved.  Vertices are ordered
+canonically via [`_canonical_vertex_order`](@ref), so corresponding triangles
+receive the same geometric vertex assignment.
 """
 function _build_correspondences(C_to, ℳ_to, C_from, ℳ_from; k = 5)
     C_to_list   = collect(C_to)
     C_from_list = collect(C_from)
 
-    isempty(C_to_list) || isempty(C_from_list) && return zeros(4, 0)
+    (isempty(C_to_list) || isempty(C_from_list)) && return zeros(2, 3, 2, 0)
 
     k_actual = min(k, size(ℳ_to, 2))
-    idxs, _ = knn(KDTree(ℳ_to), ℳ_from, k_actual)
+    idxs, _ = knn(KDTree(ℳ_to), ℳ_from, k_actual) 
 
-    cols = Vector{Float64}[]
+    n_total = length(C_from_list) * k_actual # upper bound on total matches; some may be duplicates when k_actual > 1
+    out = Array{Float64}(undef, 2, 3, 2, n_total)
+    m = 0 # match counter
 
     for i in eachindex(C_from_list)
         canon_from = _canonical_vertex_order(C_from_list[i]...)
         for j in idxs[i]
             canon_to = _canonical_vertex_order(C_to_list[j]...)
-            for l in 1:3
-                push!(cols, [
-                    canon_from[l].xcenter,
-                    canon_from[l].ycenter,
-                    canon_to[l].xcenter,
-                    canon_to[l].ycenter,
-                ])
+            m += 1
+            for v in 1:3
+                out[1, v, 1, m] = canon_from[v].xcenter
+                out[2, v, 1, m] = canon_from[v].ycenter
+                out[1, v, 2, m] = canon_to[v].xcenter
+                out[2, v, 2, m] = canon_to[v].ycenter
             end
         end
     end
 
-    isempty(cols) && return zeros(4, 0)
-    return hcat(cols...)
+    return out
 end
 
 # ──────────────────────────────────────────────────────────────────
-# Analytic minimal fitting functions for ConsensusFitting.ransac
+# Triangle-level fitting functions for ConsensusFitting.ransac
 # ──────────────────────────────────────────────────────────────────
 
-# Minimum squared distance below which two points are considered coincident
-# for the purposes of degeneracy testing in the minimal fitting functions.
-const _DEGENERATE_SQ = 1e-8
+# Minimum absolute value of the cross product (= 2 × signed triangle area in
+# pixel² units) below which a triangle is considered degenerate (collinear).
+const _DEGENERATE_AREA = 1.0
 
-"""
-    _fit_minimal_rigid(x)
+# Internal: fit a rigid or similarity transform to the single triangle match.
+# x is a 2×3×2×1 view from ransac: [coord, vertex, frame, 1]
+#   frame = 1 → from image,  frame = 2 → to image
+function _fit_triangle(x, scale::Bool)
+    pts_from = view(x, :, :, 1, 1)   # 2×3 — from-frame vertices
+    pts_to   = view(x, :, :, 2, 1)   # 2×3 — to-frame vertices
 
-Analytically fit a rigid 2-D transformation (rotation + translation, no scale)
-to exactly two point correspondences supplied as a `4 × 2` matrix `x`, where
-each column is `[x_from; y_from; x_to; y_to]`.
+    # Reject degenerate (collinear) triangles via the cross product of two edges
+    v1 = view(pts_from, :, 2) .- view(pts_from, :, 1)
+    v2 = view(pts_from, :, 3) .- view(pts_from, :, 1)
+    abs(v1[1] * v2[2] - v1[2] * v2[1]) < _DEGENERATE_AREA && return AffineMap[]
 
-Returns a one-element `Vector{AffineMap}` containing the **forward** transform
-(mapping `from`-frame coordinates to `to`-frame coordinates), or an empty
-vector when the sample is degenerate (i.e. the two `from`-points coincide).
-
-The rotation angle ``\\theta`` is determined analytically via the complex-number
-identity
-
-```math
-e^{i\\theta} = \\frac{\\Delta q \\cdot \\overline{\\Delta p}}{|\\Delta p|^2}
-```
-
-where ``\\Delta p = p_2 - p_1`` and ``\\Delta q = q_2 - q_1``.
-"""
-function _fit_minimal_rigid(x)
-    p1x, p1y = x[1, 1], x[2, 1]
-    p2x, p2y = x[1, 2], x[2, 2]
-    q1x, q1y = x[3, 1], x[4, 1]
-    q2x, q2y = x[3, 2], x[4, 2]
-
-    dpx, dpy = p2x - p1x, p2y - p1y
-    dqx, dqy = q2x - q1x, q2y - q1y
-
-    dp_sq = dpx^2 + dpy^2
-    dp_sq < _DEGENERATE_SQ && return AffineMap[]
-
-    # Complex product Δq · conj(Δp) / |Δp|²
-    c_num = dqx * dpx + dqy * dpy   # Re
-    s_num = dqy * dpx - dqx * dpy   # Im
-
-    # Normalise to a unit rotation (rigid: |R| = 1)
-    r_sq = c_num^2 + s_num^2
-    r_sq < _DEGENERATE_SQ && return AffineMap[]
-    inv_r = inv(sqrt(r_sq))
-    cosθ = c_num * inv_r
-    sinθ = s_num * inv_r
-
-    R = [cosθ -sinθ; sinθ cosθ]
-    t = [q1x - R[1, 1] * p1x - R[1, 2] * p1y,
-         q1y - R[2, 1] * p1x - R[2, 2] * p1y]
-
-    return [AffineMap(R, t)]
+    try
+        return [kabsch(pts_from => pts_to; scale)]
+    catch
+        return AffineMap[]
+    end
 end
 
 """
-    _fit_minimal_similarity(x)
+    _fit_minimal_rigid_triangle(x)
 
-Analytically fit a similarity 2-D transformation (rotation + isotropic scale +
-translation) to exactly two point correspondences supplied as a `4 × 2` matrix
-`x`, where each column is `[x_from; y_from; x_to; y_to]`.
+Fit a rigid 2-D transformation (rotation + translation) to the single triangle
+correspondence in the `2 × 3 × 2 × 1` RANSAC sample view `x`.
 
-Returns a one-element `Vector{AffineMap}` containing the **forward** transform,
-or an empty vector for degenerate input.  The scale–rotation complex factor is:
+Axes are `[coord, vertex, frame, 1]` where `frame = 1` is the `from` image and
+`frame = 2` is the `to` image.  The three vertex pairs are fitted in a
+least-squares sense via the Kabsch algorithm.
 
-```math
-A = \\frac{\\Delta q \\cdot \\overline{\\Delta p}}{|\\Delta p|^2}
-\\quad (|A| = s,\\; \\arg A = \\theta)
-```
+Returns a one-element `Vector{AffineMap}` (forward: `from` → `to`), or an
+empty vector when the from-vertices are collinear.
 """
-function _fit_minimal_similarity(x)
-    p1x, p1y = x[1, 1], x[2, 1]
-    p2x, p2y = x[1, 2], x[2, 2]
-    q1x, q1y = x[3, 1], x[4, 1]
-    q2x, q2y = x[3, 2], x[4, 2]
+_fit_minimal_rigid_triangle(x)      = _fit_triangle(x, false)
 
-    dpx, dpy = p2x - p1x, p2y - p1y
-    dqx, dqy = q2x - q1x, q2y - q1y
+"""
+    _fit_minimal_similarity_triangle(x)
 
-    dp_sq = dpx^2 + dpy^2
-    dp_sq < _DEGENERATE_SQ && return AffineMap[]
-
-    # Complex division Δq / Δp = (Δq · conj(Δp)) / |Δp|²
-    a = (dqx * dpx + dqy * dpy) / dp_sq   # s·cos θ
-    b = (dqy * dpx - dqx * dpy) / dp_sq   # s·sin θ
-
-    # Similarity matrix  M = s·R_θ = [a -b; b a]
-    M = [a -b; b a]
-    t = [q1x - M[1, 1] * p1x - M[1, 2] * p1y,
-         q1y - M[2, 1] * p1x - M[2, 2] * p1y]
-
-    return [AffineMap(M, t)]
-end
+Fit a similarity 2-D transformation (rotation + isotropic scale + translation)
+to the single triangle correspondence in the `2 × 3 × 2 × 1` RANSAC sample
+view `x`.  See [`_fit_minimal_rigid_triangle`](@ref) for the data layout and
+fitting procedure.
+"""
+_fit_minimal_similarity_triangle(x) = _fit_triangle(x, true)
 
 # ──────────────────────────────────────────────────────────────────
-# RANSAC distance / verification function
+# RANSAC distance / verification function (triangle level)
 # ──────────────────────────────────────────────────────────────────
 
 """
-    _correspondence_distfn(M_candidates, x, t)
+    _triangle_distfn(M_candidates, x, t)
 
-RANSAC verification function for 2-D point correspondences.
+RANSAC verification function for triangle-level correspondences.
 
-- `M_candidates`: collection of `AffineMap` forward transforms returned by
-  the fitting function.
-- `x`: `4 × N` data matrix; each column is `[x_from; y_from; x_to; y_to]`.
-- `t`: pixel-distance threshold for inlier classification.
+`x` is a `2 × 3 × 2 × N` array with axes `[coord, vertex, frame, match]`
+where `frame = 1` is the `from` image and `frame = 2` is the `to` image.
 
-Returns `(inliers, best_M)` where `inliers` is a `Vector{Int}` of inlier column
-indices and `best_M` is the model with the most inliers.
+A triangle match is classified as an inlier when **all three** of its vertex
+pairs satisfy `‖A·p_from + b − p_to‖ < t`.
+
+Returns `(inliers, best_M)` where `inliers` is a vector of match indices.
 """
-function _correspondence_distfn(M_candidates, x, t)
+function _triangle_distfn(M_candidates, x, t)
+    # x is 2×3×2×N — [coord, vertex, frame, match]
     best_inliers = Int[]
     best_M = first(M_candidates)
-
     t_sq = t^2
 
     for M in M_candidates
         inliers = Int[]
         A, b = M.linear, M.translation
-        for i in axes(x, 2)
-            pfx, pfy = x[1, i], x[2, i]
-            ptx, pty = x[3, i], x[4, i]
-            # Forward transform: p_to_pred = A * p_from + b
-            pred_x = A[1, 1] * pfx + A[1, 2] * pfy + b[1]
-            pred_y = A[2, 1] * pfx + A[2, 2] * pfy + b[2]
-            dx = pred_x - ptx
-            dy = pred_y - pty
-            dx^2 + dy^2 < t_sq && push!(inliers, i)
+        for i in axes(x, 4)
+            ok = true
+            for v in 1:3
+                pfx, pfy = x[1, v, 1, i], x[2, v, 1, i]
+                ptx, pty = x[1, v, 2, i], x[2, v, 2, i]
+                pred_x = A[1, 1] * pfx + A[1, 2] * pfy + b[1]
+                pred_y = A[2, 1] * pfx + A[2, 2] * pfy + b[2]
+                dx, dy = pred_x - ptx, pred_y - pty
+                if dx^2 + dy^2 ≥ t_sq
+                    ok = false
+                    break
+                end
+            end
+            ok && push!(inliers, i)
         end
         if length(inliers) > length(best_inliers)
             best_inliers = inliers

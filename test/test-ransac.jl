@@ -16,53 +16,61 @@ function render_stars(positions_rc_amp, img_size, fwhm)
 end
 
 @testset "internal fitting functions for RANSAC" begin
-    using Astroalign: _fit_minimal_rigid, _fit_minimal_similarity
+    using Astroalign: _fit_minimal_rigid_triangle, _fit_minimal_similarity_triangle
     using CoordinateTransformations: AffineMap
-    using LinearAlgebra: norm
 
-    # Two perfectly-known correspondences: rotation of 30° + translation (5, -3)
-    θ = deg2rad(30)
-    c, s = cos(θ), sin(θ)
-    R = [c -s; s c]
-    t = [5.0, -3.0]
-    p1 = [10.0, 20.0]
-    p2 = [50.0, 80.0]
-    q1 = R * p1 + t
-    q2 = R * p2 + t
+    # Three from-frame vertices (2×3 matrix, one column per vertex)
+    pts_from = [10.0  50.0  30.0;
+                20.0  80.0  15.0]  # non-collinear triangle
 
-    x = [p1[1] p2[1]; p1[2] p2[2]; q1[1] q2[1]; q1[2] q2[2]]
-
-    # ── _fit_minimal_rigid ──────────────────────────────────────────────────
+    # ── _fit_minimal_rigid_triangle ─────────────────────────────────────────
     @testset "rigid" begin
-        result = _fit_minimal_rigid(x)
+        # Known rigid transform: rotation 30° + translation (5, -3)
+        θ = deg2rad(30)
+        c, s = cos(θ), sin(θ)
+        R = [c -s; s c]
+        t = [5.0, -3.0]
+        pts_to = R * pts_from .+ t  # 2×3
+
+        # Build the 2×3×2×1 RANSAC sample (ransac passes selectdim slice)
+        x = Array{Float64}(undef, 2, 3, 2, 1)
+        x[:, :, 1, 1] = pts_from
+        x[:, :, 2, 1] = pts_to
+
+        result = _fit_minimal_rigid_triangle(x)
         @test length(result) == 1
         M = only(result)
         @test M isa AffineMap
-        @test M.linear ≈ R     atol=1e-10
-        @test M.translation ≈ t atol=1e-10
+        @test M.linear      ≈ R  atol=1e-10
+        @test M.translation ≈ t  atol=1e-10
 
-        # Degenerate: both from-points coincide
-        x_deg = copy(x); x_deg[1:2, 2] .= x_deg[1:2, 1]
-        @test isempty(_fit_minimal_rigid(x_deg))
+        # Degenerate: all three from-vertices collinear
+        pts_from_deg = [1.0  2.0  3.0; 1.0  2.0  3.0]
+        x_deg = Array{Float64}(undef, 2, 3, 2, 1)
+        x_deg[:, :, 1, 1] = pts_from_deg
+        x_deg[:, :, 2, 1] = pts_from_deg
+        @test isempty(_fit_minimal_rigid_triangle(x_deg))
     end
 
-    # ── _fit_minimal_similarity ─────────────────────────────────────────────
+    # ── _fit_minimal_similarity_triangle ────────────────────────────────────
     @testset "similarity with scale" begin
-        # Scale of 1.5, rotation 20°, translation (10, -7)
+        # Known similarity: scale 1.5, rotation 20°, translation (10, -7)
         s_factor = 1.5
         θ2 = deg2rad(20)
         c2, s2 = cos(θ2), sin(θ2)
         M_true = [s_factor*c2  -s_factor*s2; s_factor*s2  s_factor*c2]
         t2 = [10.0, -7.0]
-        q1s = M_true * p1 + t2
-        q2s = M_true * p2 + t2
-        xs = [p1[1] p2[1]; p1[2] p2[2]; q1s[1] q2s[1]; q1s[2] q2s[2]]
+        pts_to2 = M_true * pts_from .+ t2  # 2×3
 
-        result = _fit_minimal_similarity(xs)
+        xs = Array{Float64}(undef, 2, 3, 2, 1)
+        xs[:, :, 1, 1] = pts_from
+        xs[:, :, 2, 1] = pts_to2
+
+        result = _fit_minimal_similarity_triangle(xs)
         @test length(result) == 1
         M = only(result)
-        @test M.linear ≈ M_true atol=1e-10
-        @test M.translation ≈ t2 atol=1e-10
+        @test M.linear      ≈ M_true  atol=1e-10
+        @test M.translation ≈ t2      atol=1e-10
     end
 end
 
