@@ -28,7 +28,7 @@ The following will align `img_from` onto `img_to`:
 ```julia
 using Astroalign
 
-img_aligned, params = align_frame(img_to, img_from)
+img_aligned, params_aligned = align_frame(img_from, img_to)
 ```
 
 !!! info
