@@ -103,15 +103,14 @@ function align_frame(img_to, img_from;
         inlier_idxs = new_idxs
     end
 
-    # Invert the transform (to→from) for warp
-    tfm = inv(fwd_tfm)
-
     # point_map: from-vertex => to-vertex for each vertex of each inlier match
     point_map = mapreduce(vcat, inlier_idxs) do i
         [correspondences[:, v, 1, i] => correspondences[:, v, 2, i] for v in 1:3]
     end
 
-    # Step 6: Apply transformation
+    # Step 6: Invert and apply the transform (to→from)
+    tfm = inv(fwd_tfm)
+
     return (
         warp(img_from, tfm, axes(img_to)),
         (;
