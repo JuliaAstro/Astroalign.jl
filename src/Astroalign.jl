@@ -5,7 +5,7 @@ using ConsensusFitting: ransac
 using CoordinateTransformations: kabsch, AffineMap
 using Distances: euclidean
 using ImageTransformations: warp
-using NearestNeighbors: nn, knn, KDTree
+using NearestNeighbors: nn, KDTree
 using PSFModels: gaussian, fit
 using Photometry:
     estimate_background,
