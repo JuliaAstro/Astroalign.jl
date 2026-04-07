@@ -61,19 +61,13 @@ Here is a brief usage example aligning `img_from` onto `img_to` with the exporte
 
 """
 
-# ╔═╡ e1434564-9864-4ea2-9223-2b3b5aa0093a
-@bind new_data Button("Generate new data")
-
 # ╔═╡ 5c4155fa-92bd-4260-a9d4-cea9dc5f3d93
-@bind seed Slider(0:10; show_value=true)
+@bind seed confirm(Slider(1:30; show_value=true); label = "Confirm")
 
 # ╔═╡ b51e47f6-af8e-478a-a716-af74e33c9e99
 md"""
 In this particular case, `img_from` is rotated clockwise, and shifted vertically upwards and horizontally to the left relative to `img_to` in the above plot. Let's fix it.
 """
-
-# ╔═╡ f5e32327-6eaa-44f6-a40f-49aaef93b094
-# @doc align_frame
 
 # ╔═╡ a1cb22fc-e956-4cf7-aafc-0168da23e556
 md"""
@@ -102,24 +96,25 @@ For simplicity, we'll just create $(N_sources) Gaussian point sources in a $(len
 
 # ╔═╡ 0ae46a86-dd86-4092-9d34-05f643ec08af
 begin
-	new_data
-	fwhms = [(rand(Xoshiro(seed), 1:20), rand(Xoshiro(seed), 1:20))
-			 for _ in 1:N_sources]
-	positions_to = rand(Xoshiro(seed), 30:12:240, N_sources, 2)
+	rng = Xoshiro(seed)
+	# fwhms = [(rand(rng, 1:20), rand(rng, 1:20))
+	# 		 for _ in 1:N_sources]
+	fwhms = [(rand(rng, 1:20), rand(rng, 1:20)) for _ in 1:N_sources]
+	positions_to = rand(rng, 30:12:240, N_sources, 2)
 end;
 
 # ╔═╡ f7639401-1fc9-4cb1-824c-4335a4bb8b25
 # Modified from
 # https://github.com/JuliaAstro/PSFModels.jl/blob/main/test/fitting.jl
-function generate_model(model, params, inds)
+function generate_model(rng, model, params, inds)
 	cartinds = CartesianIndices(inds)
-	psf = model.(cartinds; params..., amp=30_000)
-    return psf .+ rand(Xoshiro(seed), 1000:3000, size(psf))
+	psf = model.(cartinds; params..., amp = 30_000)
+    return psf .+ rand(rng, 1000:3000, size(psf))
 end
 
 # ╔═╡ 95531bde-8386-4d51-8c83-ffb796a41e90
 img_to = map(zip(eachrow(positions_to), fwhms)) do ((x, y), fwhm)
-	generate_model(gaussian, (; x, y, fwhm), img_size)
+	generate_model(rng, gaussian, (; x, y, fwhm), img_size)
 end |> sum |> AstroImage;
 
 # ╔═╡ 5882adec-7591-4d93-98e2-efb81496c54d
@@ -129,6 +124,15 @@ img_from = let
 		 fillvalue = ImageTransformations.Periodic(),
 	)
 end |> AstroImage;
+
+# ╔═╡ 445a0d35-2b49-42cc-8529-176778b0e090
+arr_aligned_from, align_params = align_frame(img_to, img_from;
+	# box_size,
+	# ap_radius,
+	# min_fwhm = box_size .÷ 5,
+	# nsigma = 1,
+	# f = Astroalign.PSF(),
+);
 
 # ╔═╡ a2ed7b77-1277-41a3-8c29-a9814b124d09
 md"""
@@ -166,15 +170,6 @@ box_size = Astroalign._compute_box_size(img)
 # ╔═╡ b3c689bd-1778-4568-96b9-869f2e6a83c0
 ap_radius = 0.6 * first(box_size)
 
-# ╔═╡ 445a0d35-2b49-42cc-8529-176778b0e090
-arr_aligned_from, align_params = align_frame(img_to, img_from;
-	box_size,
-	ap_radius,
-	min_fwhm = box_size .÷ 5,
-	nsigma = 1,
-	f = Astroalign.PSF(),
-);
-
 # ╔═╡ 07abbeb9-15a4-4086-86ca-093e5475c0db
 aps = CircularAperture.(sources.y, sources.x, ap_radius)
 
@@ -196,6 +191,7 @@ md"""
 # ╔═╡ 4e1c0615-d26d-4147-a096-d20940b8046a
 phot_to = let
 	phot = photometry(aps, subt; f = Astroalign.PSF())
+	phot = Astroalign.to_subpixel(phot, aps)
 	sort!(phot; by = x -> hypot(x.aperture_f.psf_params.fwhm...), rev = true)
 end
 
@@ -492,13 +488,11 @@ fig = plot_pair(img_to, img_aligned_from)
 # ╟─9e130a37-1073-4d0f-860a-0ec8d164dde1
 # ╟─fa1180d4-c1ea-4a1b-8476-0e8d185d5622
 # ╟─40c14093-3806-401f-aedf-f6435f785eb4
-# ╟─e1434564-9864-4ea2-9223-2b3b5aa0093a
 # ╟─5c4155fa-92bd-4260-a9d4-cea9dc5f3d93
-# ╟─f128f050-b716-4a79-8bb6-640708d1bc88
+# ╠═f128f050-b716-4a79-8bb6-640708d1bc88
 # ╟─b51e47f6-af8e-478a-a716-af74e33c9e99
 # ╟─8769216b-00d4-44bd-97fd-7aa89cf19c23
 # ╠═445a0d35-2b49-42cc-8529-176778b0e090
-# ╠═f5e32327-6eaa-44f6-a40f-49aaef93b094
 # ╟─a1cb22fc-e956-4cf7-aafc-0168da23e556
 # ╟─b8323ad8-c26b-4cc7-9891-caa05c128fb1
 # ╟─eff56f6e-ab01-4371-a75f-f44bdde7cfd6
@@ -508,7 +502,7 @@ fig = plot_pair(img_to, img_aligned_from)
 # ╠═0ae46a86-dd86-4092-9d34-05f643ec08af
 # ╠═95531bde-8386-4d51-8c83-ffb796a41e90
 # ╠═5882adec-7591-4d93-98e2-efb81496c54d
-# ╟─f7639401-1fc9-4cb1-824c-4335a4bb8b25
+# ╠═f7639401-1fc9-4cb1-824c-4335a4bb8b25
 # ╟─a2ed7b77-1277-41a3-8c29-a9814b124d09
 # ╟─2bc269e1-dbe3-4c68-9a30-8c6054bc3a82
 # ╟─fe518d92-fbfd-4d6f-ba71-0b7b23a73fd7
