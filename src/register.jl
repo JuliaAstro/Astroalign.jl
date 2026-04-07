@@ -50,7 +50,7 @@ function _canonical_vertex_order(pa, pb, pc)
 end
 
 """
-    _build_correspondences(C_to, ℳ_to, C_from, ℳ_from; k = 5)
+    _build_correspondences(C_to, ℳ_to, C_from, ℳ_from)
 
 Build a `2 × 3 × 2 × N` array of candidate triangle-level correspondences
 between the `from` and `to` frames. The `C` and `ℳ` are the combinations of three
@@ -65,37 +65,29 @@ The axes are `[coord, vertex, frame, match]`:
 
 So `out[:, v, 1, n]` is the `(x, y)` position of vertex `v` in the `from`
 frame for match `n`, and `out[:, v, 2, n]` is the corresponding position in
-the `to` frame.
-
-For each triangle in `from`, the `k` nearest triangles in `to` (measured in
-the invariant ``\\mathscr M`` space) are retrieved.  Vertices are ordered
-canonically via [`_canonical_vertex_order`](@ref), so corresponding triangles
-receive the same geometric vertex assignment.
+the `to` frame. Vertices are ordered canonically via
+[`_canonical_vertex_order`](@ref), so corresponding triangles receive the
+same geometric vertex assignment.
 """
-function _build_correspondences(C_to, ℳ_to, C_from, ℳ_from; k = 5)
+function _build_correspondences(C_to, ℳ_to, C_from, ℳ_from)
     C_to_list   = collect(C_to)
     C_from_list = collect(C_from)
 
     (isempty(C_to_list) || isempty(C_from_list)) && return zeros(2, 3, 2, 0)
 
-    k_actual = min(k, size(ℳ_to, 2))
-    idxs, _ = knn(KDTree(ℳ_to), ℳ_from, k_actual) 
+    # Get most similar triangle in to-frame for each from-frame triangle, using the invariants as features
+    idxs, _ = nn(KDTree(ℳ_to), ℳ_from)
 
-    n_total = length(C_from_list) * k_actual # upper bound on total matches; some may be duplicates when k_actual > 1
-    out = Array{Float64}(undef, 2, 3, 2, n_total)
-    m = 0 # match counter
+    out = Array{Float64}(undef, 2, 3, 2, length(C_from_list))
 
     for i in eachindex(C_from_list)
         canon_from = _canonical_vertex_order(C_from_list[i]...)
-        for j in idxs[i]
-            canon_to = _canonical_vertex_order(C_to_list[j]...)
-            m += 1
-            for v in 1:3
-                out[1, v, 1, m] = canon_from[v].xcenter
-                out[2, v, 1, m] = canon_from[v].ycenter
-                out[1, v, 2, m] = canon_to[v].xcenter
-                out[2, v, 2, m] = canon_to[v].ycenter
-            end
+        canon_to = _canonical_vertex_order(C_to_list[idxs[i]]...)
+        for v in 1:3
+            out[1, v, 1, i] = canon_from[v].xcenter
+            out[2, v, 1, i] = canon_from[v].ycenter
+            out[1, v, 2, i] = canon_to[v].xcenter
+            out[2, v, 2, i] = canon_to[v].ycenter
         end
     end
 

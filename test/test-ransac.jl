@@ -259,7 +259,6 @@ end
         min_fwhm         = (1.0, 1.0),
         N_max            = 20,
         ransac_threshold = 5.0,
-        k_nearest        = 8,
     )
 
     # params.tfm maps img_to → img_from in (row, col) space.

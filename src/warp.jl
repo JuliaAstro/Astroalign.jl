@@ -8,7 +8,6 @@
         [N_max],
         [scale],
         [ransac_threshold],
-        [k_nearest],
         [final_iters],
         [use_fitpos],
     )
@@ -21,7 +20,7 @@ This is achieved via the following algorithm:
 1. Identify the `N_max` brightest point-like sources in `img_from` and `img_to`.
 2. Calculate all triangular asterisms formed from these sources.
 3. Build a `2 × 3 × 2 × N` array of candidate triangle-level correspondences
-   by matching each from-triangle to its `k_nearest` nearest to-triangles in
+   by matching each from-triangle to its nearest to-triangles in
    the invariant ``\\mathscr M`` space defined by [Beroiz et al. (2020)](https://ui.adsabs.harvard.edu/abs/2020A%26C....3200384B/abstract).
    Vertices are assigned via a canonical ordering that is invariant under
    rotation, so the positional correspondence between matched triangles is
@@ -46,7 +45,6 @@ This is achieved via the following algorithm:
 - `N_max`: Maximal Number of (brightest) sources to consider for alignment (default is 10).
 - `scale`: If `true`, fit a similarity transformation (rotation + isotropic scale + translation) instead of a rigid transformation (rotation + translation only). Defaults to `false`.
 - `ransac_threshold`: Pixel-distance threshold below which a correspondence is classified as an inlier by RANSAC. Defaults to `3.0`.
-- `k_nearest`: Number of nearest triangles (in invariant space) to consider per from-triangle when building the correspondence pool. Larger values increase robustness at the cost of a larger RANSAC data set. Defaults to `5`.
 - `final_iters`: Number of iterative-refinement passes after RANSAC (default `3`). Each pass fits a new transform from the current inlier set and re-scores all correspondences to admit new inliers or drop old ones.
 - `use_fitpos`: if `true` (default), the fit results are used in the position estimate for the triangles and thus the alignment.
 """
@@ -59,7 +57,6 @@ function align_frame(img_to, img_from;
     N_max = 10,
     scale::Bool = false,
     ransac_threshold::Real = 3.0,
-    k_nearest::Integer = 5,
     final_iters::Int = 3,
     use_fitpos = true,
 )
@@ -74,7 +71,7 @@ function align_frame(img_to, img_from;
     C_from, ℳ_from = triangle_invariants(phot_from)
 
     # Step 3: Build candidate correspondence pool via k-NN triangle matching
-    correspondences = _build_correspondences(C_to, ℳ_to, C_from, ℳ_from; k = k_nearest)
+    correspondences = _build_correspondences(C_to, ℳ_to, C_from, ℳ_from)
 
     size(correspondences, 4) < 1 &&
         error("align_frame: not enough candidate correspondences ($(size(correspondences, 4))); " *

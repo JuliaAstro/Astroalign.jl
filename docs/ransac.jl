@@ -35,21 +35,6 @@ md"""
 This notebook demonstrates the RANSAC-enhanced `align_frame` pipeline by
 constructing two overlapping sub-images from a single 2000 × 2000 synthetic
 stellar field and recovering the relative rigid transformation between them.
-
-The key additions relative to the original Kabsch-only pipeline are:
-
-1. **Candidate-pool generation** – instead of using only the single
-   best-matching triangle, all `k_nearest` neighbouring triangles (in the
-   invariant ``\\mathscr M`` space) contribute point-to-point correspondences to
-   a shared pool.
-2. **Analytic minimal fitting** – each RANSAC hypothesis is built from exactly
-   *two* point correspondences using a closed-form solution, which is the
-   minimum needed for a 2-D rigid (or similarity) transform.
-3. **RANSAC voting** – the hypothesis with the greatest consensus set is
-   selected, making the method robust to wrong triangle matches.
-4. **Kabsch / Umeyama refinement** – the final transform is obtained by
-   applying the [Kabsch algorithm](https://en.wikipedia.org/wiki/Kabsch_algorithm)
-   to all inlier correspondences.
 """
 
 # ╔═╡ a0000000-0000-11f0-0000-000000000003
@@ -224,9 +209,7 @@ md"""
 ## 3 · Align with `align_frame`  ✨
 
 We call `align_frame` with `scale = false` (rigid transform) and the RANSAC
-inlier threshold set to 5 pixels.  The `k_nearest = 8` parameter causes the
-correspondence pool to include the 8 nearest invariant-matching triangles for
-each from-triangle.
+inlier threshold set to 5 pixels.
 """
 
 # ╔═╡ a0000000-0000-11f0-0000-000000000014
@@ -235,7 +218,6 @@ img_aligned, params = align_frame(parent(img_to), parent(img_from);
 	min_fwhm         = (1.0, 1.0),
 	N_max            = 20,
 	ransac_threshold = 5.0,
-	k_nearest        = 8,
 );
 
 # ╔═╡ a0000000-0000-11f0-0000-000000000015
@@ -383,7 +365,6 @@ begin
 		min_fwhm         = (1.0, 1.0),
 		N_max            = 20,
 		ransac_threshold = 5.0,
-		k_nearest        = 8,
 	)
 
 	expected_scale = scale_factor
@@ -419,7 +400,6 @@ alignment correlation between the warped image and the reference exceeds 0.95.
 |:----------|:--------|:-------|
 | `scale`   | `false` | Set `true` to also fit an isotropic scale factor |
 | `ransac_threshold` | `3.0` | Inlier distance (pixels); larger = more tolerant |
-| `k_nearest` | `5` | Nearest triangles per query; larger pool = more robust |
 """
 
 # ╔═╡ a0000000-0000-11f0-0000-000000000025
