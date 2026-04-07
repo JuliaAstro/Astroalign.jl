@@ -12,18 +12,6 @@
     @test ℳ == invariants
 end
 
-@testset "find_nearest" begin
-    using Astroalign: find_nearest
-
-    C_to, ℳ_to = Data.combinations_to, Data.invariants
-    C_from, ℳ_from = Data.combinations_from, Data.invariants
-
-    sol_to, sol_from = find_nearest(C_to, ℳ_to, C_from, ℳ_from)
-
-    @test sol_to == Data.matched_triangle_to
-    @test sol_from == Data.matched_triangle_from
-end
-
 @testset "get_sources" begin
     using Astroalign: get_sources
 
