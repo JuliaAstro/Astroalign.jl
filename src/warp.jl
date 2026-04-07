@@ -20,7 +20,7 @@ This is achieved via the following algorithm:
 1. Identify the `N_max` brightest point-like sources in `img_from` and `img_to`.
 2. Calculate all triangular asterisms formed from these sources.
 3. Build a `2 × 3 × 2 × N` array of candidate triangle-level correspondences
-   by matching each from-triangle to its nearest to-triangles in
+   by matching each from-triangle to its nearest to-triangle in
    the invariant ``\\mathscr M`` space defined by [Beroiz et al. (2020)](https://ui.adsabs.harvard.edu/abs/2020A%26C....3200384B/abstract).
    Vertices are assigned via a canonical ordering that is invariant under
    rotation, so the positional correspondence between matched triangles is
@@ -70,7 +70,7 @@ function align_frame(img_to, img_from;
     C_to,   ℳ_to   = triangle_invariants(phot_to)
     C_from, ℳ_from = triangle_invariants(phot_from)
 
-    # Step 3: Build candidate correspondence pool via k-NN triangle matching
+    # Step 3: Build candidate correspondence pool via nearest neighbors triangle matching
     correspondences = _build_correspondences(C_to, ℳ_to, C_from, ℳ_from)
 
     size(correspondences, 4) < 1 &&
