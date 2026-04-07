@@ -29,7 +29,7 @@ This is achieved via the following algorithm:
 - `N_max`: Maximal Number of (brightest) sources to consider for alignment (default is 10).
 - `use_fitpos`: if `true` (default), the fit results are used in the position estimate for the triangles and thus the alignment.
 """
-function align_frame(img_to, img_from;
+function align_frame(img_from, img_to;
     box_size = _compute_box_size(img_to),
     ap_radius = 0.6 * first(box_size),
     f = PSF(),
@@ -51,9 +51,10 @@ function align_frame(img_to, img_from;
 
     # Step 4: Determine a rigid transform
     # TODO: Support similarity transform (scale = true)
-    point_map = map(sol_to, sol_from) do source_to, source_from
+    point_map = map(sol_from, sol_to) do source_from, source_to
         [source_from.xcenter, source_from.ycenter] => [source_to.xcenter, source_to.ycenter]
     end
+    # Doing to => from instead of from => to to avoid needing inv(tfm)
     tfm = kabsch(last.(point_map) => first.(point_map); scale = false)
 
     # Step 5: Apply transformation

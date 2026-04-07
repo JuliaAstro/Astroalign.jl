@@ -103,6 +103,59 @@ begin
 	positions_to = rand(rng, 30:12:240, N_sources, 2)
 end;
 
+# ╔═╡ 95531bde-8386-4d51-8c83-ffb796a41e90
+# img_to = map(zip(eachrow(positions_to), fwhms)) do ((x, y), fwhm)
+# 	generate_model(rng, gaussian, (; x, y, fwhm), img_size)
+# end |> sum |> AstroImage;
+
+# ╔═╡ 41427ae5-2e6a-4e27-8ce3-944441e82e95
+img_to = [
+            0 0 0 0 0 0 0 0 0 0 0
+            0 0 0 0 0 1 0 0 0 0 0
+            0 0 0 0 0 0 0 0 0 0 0
+            0 0 0 0 0 0 0 0 0 0 0
+            0 0 0 0 0 0 0 0 0 0 0
+            0 0 0 0 0 1 0 0 1 0 0
+            0 0 0 0 0 0 0 0 0 0 0
+            0 0 0 0 0 0 0 0 0 0 0
+            0 0 0 0 0 0 0 0 0 0 0
+            0 0 0 0 0 0 0 0 0 0 0
+            0 0 0 0 0 0 0 0 0 0 0
+        ] |> AstroImage
+
+
+# ╔═╡ 5882adec-7591-4d93-98e2-efb81496c54d
+# img_from = let
+# 	tfm = Translation(80, -120) ∘ LinearMap(RotMatrix2(π/8))
+# 	warp(img_to, tfm, axes(img_to);
+# 		 fillvalue = ImageTransformations.Periodic(),
+# 	)
+# end |> AstroImage;
+
+# ╔═╡ f84958cc-da1d-4147-a6aa-a6519d4c355b
+img_from = [
+            0 0 0 0 0 0 0 0 0 0 0
+            0 0 0 0 0 0 0 0 0 0 0
+            0 0 0 0 0 0 0 0 0 0 0
+            0 0 0 0 0 0 0 0 0 0 0
+            0 0 0 0 0 1 0 0 0 0 0
+            0 0 0 0 0 0 0 0 0 0 0
+            0 0 0 0 0 0 0 0 0 0 0
+            0 0 0 0 0 0 0 0 0 0 0
+            0 0 0 0 0 1 0 0 1 0 0
+            0 0 0 0 0 0 0 0 0 0 0
+            0 0 0 0 0 0 0 0 0 0 0
+        ] |> AstroImage
+
+# ╔═╡ 445a0d35-2b49-42cc-8529-176778b0e090
+arr_from_aligned, params_aligned = align_frame(img_from, img_to;
+	# box_size,
+	# ap_radius,
+	# min_fwhm = box_size .÷ 5,
+	# nsigma = 1,
+	# f = Astroalign.PSF(),
+);
+
 # ╔═╡ f7639401-1fc9-4cb1-824c-4335a4bb8b25
 # Modified from
 # https://github.com/JuliaAstro/PSFModels.jl/blob/main/test/fitting.jl
@@ -111,28 +164,6 @@ function generate_model(rng, model, params, inds)
 	psf = model.(cartinds; params..., amp = 30_000)
     return psf .+ rand(rng, 1000:3000, size(psf))
 end
-
-# ╔═╡ 95531bde-8386-4d51-8c83-ffb796a41e90
-img_to = map(zip(eachrow(positions_to), fwhms)) do ((x, y), fwhm)
-	generate_model(rng, gaussian, (; x, y, fwhm), img_size)
-end |> sum |> AstroImage;
-
-# ╔═╡ 5882adec-7591-4d93-98e2-efb81496c54d
-img_from = let
-	tfm = Translation(80, -120) ∘ LinearMap(RotMatrix2(π/8))
-	warp(img_to, tfm, axes(img_to);
-		 fillvalue = ImageTransformations.Periodic(),
-	)
-end |> AstroImage;
-
-# ╔═╡ 445a0d35-2b49-42cc-8529-176778b0e090
-arr_aligned_from, align_params = align_frame(img_to, img_from;
-	# box_size,
-	# ap_radius,
-	# min_fwhm = box_size .÷ 5,
-	# nsigma = 1,
-	# f = Astroalign.PSF(),
-);
 
 # ╔═╡ a2ed7b77-1277-41a3-8c29-a9814b124d09
 md"""
@@ -287,7 +318,7 @@ This can also be accessed through the `align_params` named tuple returned by `As
 """
 
 # ╔═╡ ad82de06-50f8-4e30-80b9-e4821e845162
-(; C_from, ℳ_from) = align_params; C_from, ℳ_from
+(; C_from, ℳ_from) = params_aligned; C_from, ℳ_from
 
 # ╔═╡ cdba7937-eea8-409a-b9e3-714e4516486c
 let
@@ -341,12 +372,16 @@ Now that we have our point-to-point correspondence, we can compute our affine tr
 """
 
 # ╔═╡ 6646cf68-daf0-4a83-b3a8-43415ee8f97f
-point_map = map(sol_to, sol_from) do source_to, source_from
+point_map = map(sol_from, sol_to) do source_from, source_to
 	[source_from.xcenter, source_from.ycenter] => [source_to.xcenter, source_to.ycenter]
 end
 
 # ╔═╡ 9db16b0e-1e1e-40a5-b7f4-56f819f4e0b1
-tfm = kabsch(last.(point_map) => first.(point_map); scale=false)
+# Doing to => from instead of from => to to avoid needing inv(tfm)
+tfm = kabsch(last.(point_map) => first.(point_map); scale = false)
+
+# ╔═╡ 6940ae39-f8c4-4d6d-ae4c-33b5611a1043
+tfm.translation
 
 # ╔═╡ 3779aed1-a02d-4370-8d56-37a2a5d374bf
 md"""
@@ -447,7 +482,7 @@ end
 end
 
 # ╔═╡ de7ff589-99c0-4625-8a10-86aa702d2510
-function plot_pair(img₁, img₂; column_titles=["img_to", "img_from"])
+function plot_pair(img_left, img_right; column_titles=["img_left", "img_right"])
 	# Set up some subplots
 	fig = make_subplots(;
 		rows = 1,	
@@ -461,25 +496,25 @@ function plot_pair(img₁, img₂; column_titles=["img_to", "img_from"])
 	update_annotations!(fig, font_size=14)
 	
 	# Manually place the colorbars so they don't clash
-	p1 = add_trace!(fig, trace_hm(img₁; colorbar_x=0.45), col=1)
-	p2 = add_trace!(fig, trace_hm(img₂; colorbar_x=1), col=2)
+	p1 = add_trace!(fig, trace_hm(img_left; colorbar_x = 0.45), col = 1)
+	p2 = add_trace!(fig, trace_hm(img_right; colorbar_x = 1), col = 2)
 
 	# Keep the images true to size
-	update_xaxes!(fig, matches="x", scaleanchor=:y, title="X (pixels)")
-	update_yaxes!(fig, matches="y", scaleanchor=:x)
+	update_xaxes!(fig, matches = "x", scaleanchor = :y, title = "X (pixels)")
+	update_yaxes!(fig, matches = "y", scaleanchor = :x)
 
 	# Add a shared y-label
-	relayout!(fig, Layout(yaxis_title="Y (pixels)"), font_size=10, template="plotly_white", margin=attr(t=20), uirevision=1)
+	relayout!(fig, Layout(yaxis_title = "Y (pixels)"), font_size = 10, template = "plotly_white", margin = attr(t = 20), uirevision = 1)
 
 	# Display
 	return fig
 end
 
 # ╔═╡ f128f050-b716-4a79-8bb6-640708d1bc88
-plot_pair(img_to, img_from)
+plot_pair(img_from, img_to; column_titles = ["img_from", "img_to"])
 
 # ╔═╡ 8769216b-00d4-44bd-97fd-7aa89cf19c23
-plot_pair(img_to, arr_aligned_from)
+plot_pair(arr_from_aligned, img_to; column_titles = ["img_from (aligned)", "img_to"])
 
 # ╔═╡ 066210ea-b5b3-4f73-8fc1-503625fc32ce
 fig = plot_pair(img_to, img_aligned_from)
@@ -489,7 +524,7 @@ fig = plot_pair(img_to, img_aligned_from)
 # ╟─fa1180d4-c1ea-4a1b-8476-0e8d185d5622
 # ╟─40c14093-3806-401f-aedf-f6435f785eb4
 # ╟─5c4155fa-92bd-4260-a9d4-cea9dc5f3d93
-# ╠═f128f050-b716-4a79-8bb6-640708d1bc88
+# ╟─f128f050-b716-4a79-8bb6-640708d1bc88
 # ╟─b51e47f6-af8e-478a-a716-af74e33c9e99
 # ╟─8769216b-00d4-44bd-97fd-7aa89cf19c23
 # ╠═445a0d35-2b49-42cc-8529-176778b0e090
@@ -501,7 +536,9 @@ fig = plot_pair(img_to, img_aligned_from)
 # ╠═d97c367c-4db1-4dd0-8066-3f12e08d2f01
 # ╠═0ae46a86-dd86-4092-9d34-05f643ec08af
 # ╠═95531bde-8386-4d51-8c83-ffb796a41e90
+# ╠═41427ae5-2e6a-4e27-8ce3-944441e82e95
 # ╠═5882adec-7591-4d93-98e2-efb81496c54d
+# ╠═f84958cc-da1d-4147-a6aa-a6519d4c355b
 # ╠═f7639401-1fc9-4cb1-824c-4335a4bb8b25
 # ╟─a2ed7b77-1277-41a3-8c29-a9814b124d09
 # ╟─2bc269e1-dbe3-4c68-9a30-8c6054bc3a82
@@ -540,6 +577,7 @@ fig = plot_pair(img_to, img_aligned_from)
 # ╟─1150fd19-ece7-4fd0-91db-a4df982d1e8e
 # ╠═6646cf68-daf0-4a83-b3a8-43415ee8f97f
 # ╠═9db16b0e-1e1e-40a5-b7f4-56f819f4e0b1
+# ╠═6940ae39-f8c4-4d6d-ae4c-33b5611a1043
 # ╟─3779aed1-a02d-4370-8d56-37a2a5d374bf
 # ╠═7990c8be-9425-47d0-a913-9e2bb4fbefd1
 # ╠═066210ea-b5b3-4f73-8fc1-503625fc32ce
