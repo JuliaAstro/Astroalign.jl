@@ -22,13 +22,13 @@ end
 
 Return the closes pair of three points between the `from` and `to` frames in the invariant ``\\mathscr M`` space as computed by [`Astroalign.triangle_invariants`](@ref).
 """
-function find_nearest(C_to, ℳ_to, C_from, ℳ_from)
+function find_nearest(C_from, ℳ_from, C_to, ℳ_to)
     # Find the nearest neighbors regarding the triangles
     idxs, dists = nn(KDTree(ℳ_to), ℳ_from)
     # Determine the best match:
     idx_from = argmin(dists)
+    sol_from = collect(C_from)[idx_from]
     idx_to = idxs[idx_from]
     sol_to = collect(C_to)[idx_to]
-    sol_from = collect(C_from)[idx_from]
-    return sol_to, sol_from
+    return sol_from, sol_to
 end

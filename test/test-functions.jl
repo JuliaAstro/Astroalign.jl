@@ -45,7 +45,7 @@ end
     img_to = Data.img_to
     img_from = Data.img_from
 
-    img_aligned, params = align_frame(img_to, img_from; min_fwhm = (0.1, 0.1))
+    img_aligned, params = align_frame(img_from, img_to; min_fwhm = (0.1, 0.1))
 
     @test img_aligned ≈ img_to
     @test params.point_map == [
@@ -103,9 +103,9 @@ end
     @test propertynames(p) == (
         :point_map,
         :tfm,
-        :C_to,
-        :ℳ_to,
         :C_from,
         :ℳ_from,
+        :C_to,
+        :ℳ_to,
     )
 end
