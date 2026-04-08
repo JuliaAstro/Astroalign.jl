@@ -57,23 +57,17 @@ Enter [`astroalign.py`](https://github.com/quatrope/astroalign). This really nea
 md"""
 ### Usage
 
-Here is a brief usage example aligning `img_from` onto `img_to` with the exported `align` function from Astroalign.jl. Click the button below to generate a new star / galaxy field.
+Here is a brief usage example aligning `img_from` onto `img_to` with the exported `align` function from Astroalign.jl. Select a star field below to get started:
 
 """
 
-# ╔═╡ e1434564-9864-4ea2-9223-2b3b5aa0093a
-@bind new_data Button("Generate new data")
-
-# ╔═╡ 5c4155fa-92bd-4260-a9d4-cea9dc5f3d93
-@bind seed Slider(0:10; show_value=true)
+# ╔═╡ c5bfce23-d050-42e3-8af2-f1181adaaa2d
+@bind seed PlutoUI.Radio([i => "Star field $(i)" for i in 1:5]; default = 1)
 
 # ╔═╡ b51e47f6-af8e-478a-a716-af74e33c9e99
 md"""
 In this particular case, `img_from` is rotated clockwise, and shifted vertically upwards and horizontally to the left relative to `img_to` in the above plot. Let's fix it.
 """
-
-# ╔═╡ f5e32327-6eaa-44f6-a40f-49aaef93b094
-# @doc align_frame
 
 # ╔═╡ a1cb22fc-e956-4cf7-aafc-0168da23e556
 md"""
@@ -102,24 +96,25 @@ For simplicity, we'll just create $(N_sources) Gaussian point sources in a $(len
 
 # ╔═╡ 0ae46a86-dd86-4092-9d34-05f643ec08af
 begin
-	new_data
-	fwhms = [(rand(Xoshiro(seed), 1:20), rand(Xoshiro(seed), 1:20))
-			 for _ in 1:N_sources]
-	positions_to = rand(Xoshiro(seed), 30:12:240, N_sources, 2)
+	rng = Xoshiro(seed)
+	# fwhms = [(rand(rng, 1:20), rand(rng, 1:20))
+	# 		 for _ in 1:N_sources]
+	fwhms = [(rand(rng, 1:20), rand(rng, 1:20)) for _ in 1:N_sources]
+	positions_to = rand(rng, 30:12:240, N_sources, 2)
 end;
 
 # ╔═╡ f7639401-1fc9-4cb1-824c-4335a4bb8b25
 # Modified from
 # https://github.com/JuliaAstro/PSFModels.jl/blob/main/test/fitting.jl
-function generate_model(model, params, inds)
+function generate_model(rng, model, params, inds)
 	cartinds = CartesianIndices(inds)
-	psf = model.(cartinds; params..., amp=30_000)
-    return psf .+ rand(Xoshiro(seed), 1000:3000, size(psf))
+	psf = model.(cartinds; params..., amp = 30_000)
+    return psf .+ rand(rng, 1000:3000, size(psf))
 end
 
 # ╔═╡ 95531bde-8386-4d51-8c83-ffb796a41e90
 img_to = map(zip(eachrow(positions_to), fwhms)) do ((x, y), fwhm)
-	generate_model(gaussian, (; x, y, fwhm), img_size)
+	generate_model(rng, gaussian, (; x, y, fwhm), img_size)
 end |> sum |> AstroImage;
 
 # ╔═╡ 5882adec-7591-4d93-98e2-efb81496c54d
@@ -129,6 +124,15 @@ img_from = let
 		 fillvalue = ImageTransformations.Periodic(),
 	)
 end |> AstroImage;
+
+# ╔═╡ 445a0d35-2b49-42cc-8529-176778b0e090
+arr_from_aligned, params_aligned = align_frame(img_from, img_to;
+	# box_size,
+	# ap_radius,
+	# min_fwhm = box_size .÷ 5,
+	# nsigma = 1,
+	# f = Astroalign.PSF(),
+);
 
 # ╔═╡ a2ed7b77-1277-41a3-8c29-a9814b124d09
 md"""
@@ -149,34 +153,24 @@ md"""
 md"""
 #### Source extraction
 
-Starting with `Astroalign.get_sources`, we get the following candidate `sources` in our first image:
+Starting with `Astroalign.get_sources`, we identify candidate sources (`sources_to`) in the image that we would like to align to (`img_to`):
 """
 
-# ╔═╡ 00116e4a-8d9d-46dd-b09f-005a19ddf4ee
-img = img_to;
-
 # ╔═╡ fb0efcf4-26d4-4554-a5cf-b1136f5a6c17
-# Sources, background subtracted image, background
-# Guard against extraneous matches by only taking first 10
-sources, subt, errs = get_sources(img);
+# Sources, background subtracted image, background.
+# Guards against extraneous matches by
+# only selecting brightest 10 sources by default.
+sources_to, subt_to, errs_to = get_sources(img_to);
 
 # ╔═╡ 8afa31f0-ee57-4628-bedf-dd2b79faef72
-box_size = Astroalign._compute_box_size(img)
-
-# ╔═╡ b3c689bd-1778-4568-96b9-869f2e6a83c0
+begin
+# Common to both images
+box_size = Astroalign._compute_box_size(img_to)
 ap_radius = 0.6 * first(box_size)
-
-# ╔═╡ 445a0d35-2b49-42cc-8529-176778b0e090
-arr_aligned_from, align_params = align_frame(img_to, img_from;
-	box_size,
-	ap_radius,
-	min_fwhm = box_size .÷ 5,
-	nsigma = 1,
-	f = Astroalign.PSF(),
-);
+end; box_size, ap_radius
 
 # ╔═╡ 07abbeb9-15a4-4086-86ca-093e5475c0db
-aps = CircularAperture.(sources.y, sources.x, ap_radius)
+aps_to = CircularAperture.(sources_to.y, sources_to.x, ap_radius)
 
 # ╔═╡ c6ef3b26-ccc1-401b-ba9b-88276d4c5067
 md"""
@@ -187,15 +181,16 @@ Since these are just locations of the brightest points in our image, some could 
 md"""
 #### Source characterization
 
-[`Photometry.photometry`](https://juliaastro.org/Photometry/stable/apertures/#Photometry.Aperture.photometry) automatically computes aperture sums and returns them in a nice table for us. We use a [slightly modified version](https://github.com/JuliaAstro/Photometry.jl/pull/74) in Astroalign.jl to also compute some PSF statistics for each source and stores them in `phot`.
+[`Photometry.photometry`](https://juliaastro.org/Photometry/stable/apertures/#Photometry.Aperture.photometry) automatically computes aperture sums and returns them in a nice table for us. We also pass a function, `Astroalign.PSF`, to compute some PSF statistics for each source and stores them in the table as well.
 
 !!! note
-	Some PSF models will not converge, but I think that is to be expected for really noisy sources and is probably fine since they won't be included in the final filtered list anyway.
+	Some PSF model fits may not converge for really noisy sources.
 """
 
 # ╔═╡ 4e1c0615-d26d-4147-a096-d20940b8046a
 phot_to = let
-	phot = photometry(aps, subt; f = Astroalign.PSF())
+	phot = photometry(aps_to, subt_to; f = Astroalign.PSF())
+	phot = Astroalign.to_subpixel(phot, aps_to)
 	sort!(phot; by = x -> hypot(x.aperture_f.psf_params.fwhm...), rev = true)
 end
 
@@ -221,6 +216,12 @@ Below is a quick visual check that compares our observed point source with its r
 # ╔═╡ 0083d7bb-07f2-45e6-b4f8-44099ff1a0bf
 # And "truth" fwhms for comparison
 sort(fwhms; by = x -> hypot(x...), rev = true)
+
+# ╔═╡ 1a53b727-2553-468f-9105-134f682249a2
+md"""
+!!! note
+	PSF centers are relative to the aperture, while `xcenter` and `ycenter` are relative to the whole image. Astroalign.jl performs the necessary conversions from the former to the latter in `Astroalign.to_subpixel` before reporting the final fitted values.
+"""
 
 # ╔═╡ 35befaff-e36c-4741-b28f-3589afe596cd
 function inspect_psf(phot)
@@ -279,7 +280,7 @@ This is performed internally on a per-image basis with the `Astroalign._get_phot
 md"""
 ### Step 2: Calculate invariants
 
-This is done internally in `Astroalign.align_frame`, but the computed invariants `ℳᵢ` can be exposed with `Astroalign.triangle_invariants` for plotting and debugging. Below is a plot comparing the compents of the computed invariants for all control points in our `from` and `to` images. Overlapping sections indicates similar triangle between images found by Astroalign.jl. Compare to Fig 1. in [Beroiz, M., Cabral, J. B., & Sanchez, B. (2020)](https://arxiv.org/pdf/1909.02946).
+This is done internally in `Astroalign.align_frame`, but the computed invariants ``\mathscr M_i`` can be exposed with `Astroalign.triangle_invariants` for plotting and debugging. Below is a plot comparing the compents of the computed invariants for all control points in our `from` and `to` images. Overlapping sections indicates similar triangle between images found by Astroalign.jl. Compare to Fig 1. in [Beroiz, M., Cabral, J. B., & Sanchez, B. (2020)](https://arxiv.org/pdf/1909.02946).
 """
 
 # ╔═╡ c46335bc-ae9a-4257-8a85-b4ccb94d1744
@@ -291,7 +292,7 @@ This can also be accessed through the `align_params` named tuple returned by `As
 """
 
 # ╔═╡ ad82de06-50f8-4e30-80b9-e4821e845162
-(; C_from, ℳ_from) = align_params; C_from, ℳ_from
+(; C_from, ℳ_from) = params_aligned; C_from, ℳ_from
 
 # ╔═╡ cdba7937-eea8-409a-b9e3-714e4516486c
 let
@@ -325,7 +326,7 @@ We will find this closest match next to define our point-to-point correspondence
 """
 
 # ╔═╡ dc2a101a-36d7-4402-b543-c576aba987ea
-sol_to, sol_from = find_nearest(C_to, ℳ_to, C_from, ℳ_from)
+sol_from, sol_to = find_nearest(C_from, ℳ_from, C_to, ℳ_to)
 
 # ╔═╡ bd2d9faf-7e0c-4a46-91e9-b3984dd3090e
 aps_sol_to = map(sol_to) do sol
@@ -345,12 +346,13 @@ Now that we have our point-to-point correspondence, we can compute our affine tr
 """
 
 # ╔═╡ 6646cf68-daf0-4a83-b3a8-43415ee8f97f
-point_map = map(sol_to, sol_from) do source_to, source_from
+point_map = map(sol_from, sol_to) do source_from, source_to
 	[source_from.xcenter, source_from.ycenter] => [source_to.xcenter, source_to.ycenter]
 end
 
 # ╔═╡ 9db16b0e-1e1e-40a5-b7f4-56f819f4e0b1
-tfm = kabsch(last.(point_map) => first.(point_map); scale=false)
+# Doing to => from instead of from => to to avoid needing inv(tfm)
+tfm = kabsch(last.(point_map) => first.(point_map); scale = false)
 
 # ╔═╡ 3779aed1-a02d-4370-8d56-37a2a5d374bf
 md"""
@@ -420,11 +422,11 @@ end
 # ╔═╡ ada7cfc1-43a6-4469-8d23-7cbe37f22301
 let
 	l = Layout(;
-		xaxis = attr(title="X"),
-		yaxis = attr(title="Y"),
+		xaxis = attr(title = "X"),
+		yaxis = attr(title = "Y"),
 	)
-	p = plot(trace_hm(img; colorbar_x=1.0), l)
-	relayout!(p; shapes=circ.(aps))
+	p = plot(trace_hm(img_to; colorbar_x = 1.0), l)
+	relayout!(p; shapes = circ.(aps_to))
 	p
 end
 
@@ -451,7 +453,7 @@ end
 end
 
 # ╔═╡ de7ff589-99c0-4625-8a10-86aa702d2510
-function plot_pair(img₁, img₂; column_titles=["img_to", "img_from"])
+function plot_pair(img_left, img_right; column_titles=["img_left", "img_right"])
 	# Set up some subplots
 	fig = make_subplots(;
 		rows = 1,	
@@ -465,25 +467,25 @@ function plot_pair(img₁, img₂; column_titles=["img_to", "img_from"])
 	update_annotations!(fig, font_size=14)
 	
 	# Manually place the colorbars so they don't clash
-	p1 = add_trace!(fig, trace_hm(img₁; colorbar_x=0.45), col=1)
-	p2 = add_trace!(fig, trace_hm(img₂; colorbar_x=1), col=2)
+	p1 = add_trace!(fig, trace_hm(img_left; colorbar_x = 0.45), col = 1)
+	p2 = add_trace!(fig, trace_hm(img_right; colorbar_x = 1), col = 2)
 
 	# Keep the images true to size
-	update_xaxes!(fig, matches="x", scaleanchor=:y, title="X (pixels)")
-	update_yaxes!(fig, matches="y", scaleanchor=:x)
+	update_xaxes!(fig, matches = "x", scaleanchor = :y, title = "X (pixels)")
+	update_yaxes!(fig, matches = "y", scaleanchor = :x)
 
 	# Add a shared y-label
-	relayout!(fig, Layout(yaxis_title="Y (pixels)"), font_size=10, template="plotly_white", margin=attr(t=20), uirevision=1)
+	relayout!(fig, Layout(yaxis_title = "Y (pixels)"), font_size = 10, template = "plotly_white", margin = attr(t = 20), uirevision = 1)
 
 	# Display
 	return fig
 end
 
 # ╔═╡ f128f050-b716-4a79-8bb6-640708d1bc88
-plot_pair(img_to, img_from)
+plot_pair(img_from, img_to; column_titles = ["img_from", "img_to"])
 
 # ╔═╡ 8769216b-00d4-44bd-97fd-7aa89cf19c23
-plot_pair(img_to, arr_aligned_from)
+plot_pair(arr_from_aligned, img_to; column_titles = ["img_from (aligned)", "img_to"])
 
 # ╔═╡ 066210ea-b5b3-4f73-8fc1-503625fc32ce
 fig = plot_pair(img_to, img_aligned_from)
@@ -492,13 +494,11 @@ fig = plot_pair(img_to, img_aligned_from)
 # ╟─9e130a37-1073-4d0f-860a-0ec8d164dde1
 # ╟─fa1180d4-c1ea-4a1b-8476-0e8d185d5622
 # ╟─40c14093-3806-401f-aedf-f6435f785eb4
-# ╟─e1434564-9864-4ea2-9223-2b3b5aa0093a
-# ╟─5c4155fa-92bd-4260-a9d4-cea9dc5f3d93
+# ╟─c5bfce23-d050-42e3-8af2-f1181adaaa2d
 # ╟─f128f050-b716-4a79-8bb6-640708d1bc88
 # ╟─b51e47f6-af8e-478a-a716-af74e33c9e99
 # ╟─8769216b-00d4-44bd-97fd-7aa89cf19c23
 # ╠═445a0d35-2b49-42cc-8529-176778b0e090
-# ╠═f5e32327-6eaa-44f6-a40f-49aaef93b094
 # ╟─a1cb22fc-e956-4cf7-aafc-0168da23e556
 # ╟─b8323ad8-c26b-4cc7-9891-caa05c128fb1
 # ╟─eff56f6e-ab01-4371-a75f-f44bdde7cfd6
@@ -508,14 +508,12 @@ fig = plot_pair(img_to, img_aligned_from)
 # ╠═0ae46a86-dd86-4092-9d34-05f643ec08af
 # ╠═95531bde-8386-4d51-8c83-ffb796a41e90
 # ╠═5882adec-7591-4d93-98e2-efb81496c54d
-# ╟─f7639401-1fc9-4cb1-824c-4335a4bb8b25
+# ╠═f7639401-1fc9-4cb1-824c-4335a4bb8b25
 # ╟─a2ed7b77-1277-41a3-8c29-a9814b124d09
 # ╟─2bc269e1-dbe3-4c68-9a30-8c6054bc3a82
 # ╟─fe518d92-fbfd-4d6f-ba71-0b7b23a73fd7
-# ╠═00116e4a-8d9d-46dd-b09f-005a19ddf4ee
 # ╠═fb0efcf4-26d4-4554-a5cf-b1136f5a6c17
 # ╠═8afa31f0-ee57-4628-bedf-dd2b79faef72
-# ╠═b3c689bd-1778-4568-96b9-869f2e6a83c0
 # ╠═07abbeb9-15a4-4086-86ca-093e5475c0db
 # ╟─ada7cfc1-43a6-4469-8d23-7cbe37f22301
 # ╟─c6ef3b26-ccc1-401b-ba9b-88276d4c5067
@@ -526,6 +524,7 @@ fig = plot_pair(img_to, img_aligned_from)
 # ╟─3da14f39-9fad-412e-824b-c3db190700aa
 # ╠═68139ad3-cf00-4286-b9eb-a435dd20aca2
 # ╠═0083d7bb-07f2-45e6-b4f8-44099ff1a0bf
+# ╟─1a53b727-2553-468f-9105-134f682249a2
 # ╟─35befaff-e36c-4741-b28f-3589afe596cd
 # ╟─c73692f2-178d-4b35-badc-e9e682551989
 # ╟─0603752b-5fcc-4e14-ae41-292cc49c6711

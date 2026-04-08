@@ -48,7 +48,7 @@ This is achieved via the following algorithm:
 - `final_iters`: Number of iterative-refinement passes after RANSAC (default `3`). Each pass fits a new transform from the current inlier set and re-scores all correspondences to admit new inliers or drop old ones.
 - `use_fitpos`: if `true` (default), the fit results are used in the position estimate for the triangles and thus the alignment.
 """
-function align_frame(img_to, img_from;
+function align_frame(img_from, img_to;
     box_size = _compute_box_size(img_to),
     ap_radius = 0.6 * first(box_size),
     f = PSF(),
@@ -63,15 +63,15 @@ function align_frame(img_to, img_from;
     ransac_threshold = float(ransac_threshold)
 
     # Step 1: Identify control points
-    phot_to = _photometry(img_to, box_size, ap_radius, min_fwhm, nsigma, f; N_max, filter_fwhm = true, use_fitpos)
     phot_from = _photometry(img_from, box_size, ap_radius, min_fwhm, nsigma, f; N_max, filter_fwhm = true, use_fitpos)
+    phot_to = _photometry(img_to, box_size, ap_radius, min_fwhm, nsigma, f; N_max, filter_fwhm = true, use_fitpos)
 
     # Step 2: Calculate invariants
-    C_to,   ℳ_to   = triangle_invariants(phot_to)
     C_from, ℳ_from = triangle_invariants(phot_from)
-
+    C_to, ℳ_to = triangle_invariants(phot_to)
+    
     # Step 3: Build candidate correspondence pool via nearest neighbors triangle matching
-    correspondences = _build_correspondences(C_to, ℳ_to, C_from, ℳ_from)
+    correspondences = _build_correspondences(C_from, ℳ_from, C_to, ℳ_to)
 
     size(correspondences, 4) < 1 &&
         error("align_frame: not enough candidate correspondences ($(size(correspondences, 4))); " *
@@ -101,12 +101,13 @@ function align_frame(img_to, img_from;
     end
 
     # point_map: from-vertex => to-vertex for each vertex of each inlier match
+    # Note, this actually contructs things the other way around to avoid needing inv(tfm)
     point_map = mapreduce(vcat, inlier_idxs) do i
         [correspondences[:, v, 1, i] => correspondences[:, v, 2, i] for v in 1:3]
     end
 
-    # Step 6: Invert and apply the transform (to→from)
-    tfm = inv(fwd_tfm)
+    # Step 6: Apply the transform (from => to)
+    tfm = fwd_tfm
 
     return (
         warp(img_from, tfm, axes(img_to)),
@@ -115,10 +116,10 @@ function align_frame(img_to, img_from;
             tfm,
             correspondences,
             inlier_idxs,
-            C_to,
-            ℳ_to,
             C_from,
             ℳ_from,
+            C_to,
+            ℳ_to,
         )
     )
 end

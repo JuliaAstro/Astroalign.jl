@@ -50,7 +50,7 @@ function _canonical_vertex_order(pa, pb, pc)
 end
 
 """
-    _build_correspondences(C_to, ℳ_to, C_from, ℳ_from)
+    _build_correspondences(C_from, ℳ_from, C_to, ℳ_to)
 
 Build a `2 × 3 × 2 × N` array of candidate triangle-level correspondences
 between the `from` and `to` frames. The `C` and `ℳ` are the combinations of three
@@ -69,11 +69,11 @@ the `to` frame. Vertices are ordered canonically via
 [`_canonical_vertex_order`](@ref), so corresponding triangles receive the
 same geometric vertex assignment.
 """
-function _build_correspondences(C_to, ℳ_to, C_from, ℳ_from)
-    C_to_list   = collect(C_to)
+function _build_correspondences(C_from, ℳ_from, C_to, ℳ_to)
     C_from_list = collect(C_from)
+    C_to_list   = collect(C_to)
 
-    (isempty(C_to_list) || isempty(C_from_list)) && return zeros(2, 3, 2, 0)
+    (isempty(C_from_list) || isempty(C_to_list)) && return zeros(2, 3, 2, 0)
 
     # Get most similar triangle in to-frame for each from-frame triangle, using the invariants as features
     idxs, _ = nn(KDTree(ℳ_to), ℳ_from)
