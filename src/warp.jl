@@ -1,5 +1,5 @@
 """
-    function align_frame(img_to, img_from;
+    function align_frame(img_from, img_to;
         [box_size],
         [ap_radius],
         [f],
@@ -101,13 +101,12 @@ function align_frame(img_from, img_to;
     end
 
     # point_map: from-vertex => to-vertex for each vertex of each inlier match
-    # Note, this actually contructs things the other way around to avoid needing inv(tfm)
     point_map = mapreduce(vcat, inlier_idxs) do i
         [correspondences[:, v, 1, i] => correspondences[:, v, 2, i] for v in 1:3]
     end
 
     # Step 6: Apply the transform (from => to)
-    tfm = fwd_tfm
+    tfm = inv(fwd_tfm)
 
     return (
         warp(img_from, tfm, axes(img_to)),

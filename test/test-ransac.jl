@@ -119,7 +119,7 @@ end
     img_to   = render_stars(stars_to_rc,   img_size, fwhm)
     img_from = render_stars(stars_from_rc, img_size, fwhm)
 
-    img_aligned, params = align_frame(img_to, img_from;
+    img_aligned, params = align_frame(img_from, img_to;
         scale            = false,
         min_fwhm         = (0.5, 0.5),
         N_max            = nstars,
@@ -179,7 +179,7 @@ end
     img_to   = render_stars(stars_to_rc,   img_size, fwhm)
     img_from = render_stars(stars_from_rc, img_size, fwhm)
 
-    img_aligned, params = align_frame(img_to, img_from;
+    img_aligned, params = align_frame(img_from, img_to;
         scale            = true,
         min_fwhm         = (0.5, 0.5),
         N_max            = nstars,
@@ -254,7 +254,7 @@ end
     tfm2_back  = Translation(master_ctr) ∘ LinearMap(R_rot) ∘ Translation(-sub_ctr)
     img_from   = warp(master, tfm2_back, (1:512, 1:512))
 
-    img_aligned, params = align_frame(img_to, img_from;
+    img_aligned, params = align_frame(img_from, img_to;
         scale            = false,
         min_fwhm         = (1.0, 1.0),
         N_max            = 20,
