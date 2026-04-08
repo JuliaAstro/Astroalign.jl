@@ -153,25 +153,24 @@ md"""
 md"""
 #### Source extraction
 
-Starting with `Astroalign.get_sources`, we get the following candidate `sources` in our first image:
+Starting with `Astroalign.get_sources`, we identify candidate sources (`sources_to`) in the image that we would like to align to (`img_to`):
 """
 
-# ╔═╡ 00116e4a-8d9d-46dd-b09f-005a19ddf4ee
-img = img_to;
-
 # ╔═╡ fb0efcf4-26d4-4554-a5cf-b1136f5a6c17
-# Sources, background subtracted image, background
-# Guard against extraneous matches by only taking first 10
-sources, subt, errs = get_sources(img);
+# Sources, background subtracted image, background.
+# Guards against extraneous matches by
+# only selecting brightest 10 sources by default.
+sources_to, subt_to, errs_to = get_sources(img_to);
 
 # ╔═╡ 8afa31f0-ee57-4628-bedf-dd2b79faef72
-box_size = Astroalign._compute_box_size(img)
-
-# ╔═╡ b3c689bd-1778-4568-96b9-869f2e6a83c0
+begin
+# Common to both images
+box_size = Astroalign._compute_box_size(img_to)
 ap_radius = 0.6 * first(box_size)
+end; box_size, ap_radius
 
 # ╔═╡ 07abbeb9-15a4-4086-86ca-093e5475c0db
-aps = CircularAperture.(sources.y, sources.x, ap_radius)
+aps_to = CircularAperture.(sources_to.y, sources_to.x, ap_radius)
 
 # ╔═╡ c6ef3b26-ccc1-401b-ba9b-88276d4c5067
 md"""
@@ -182,16 +181,16 @@ Since these are just locations of the brightest points in our image, some could 
 md"""
 #### Source characterization
 
-[`Photometry.photometry`](https://juliaastro.org/Photometry/stable/apertures/#Photometry.Aperture.photometry) automatically computes aperture sums and returns them in a nice table for us. We use a [slightly modified version](https://github.com/JuliaAstro/Photometry.jl/pull/74) in Astroalign.jl to also compute some PSF statistics for each source and stores them in `phot`.
+[`Photometry.photometry`](https://juliaastro.org/Photometry/stable/apertures/#Photometry.Aperture.photometry) automatically computes aperture sums and returns them in a nice table for us. We also pass a function, `Astroalign.PSF`, to compute some PSF statistics for each source and stores them in the table as well.
 
 !!! note
-	Some PSF models will not converge, but I think that is to be expected for really noisy sources and is probably fine since they won't be included in the final filtered list anyway.
+	Some PSF model fits may not converge for really noisy sources.
 """
 
 # ╔═╡ 4e1c0615-d26d-4147-a096-d20940b8046a
 phot_to = let
-	phot = photometry(aps, subt; f = Astroalign.PSF())
-	phot = Astroalign.to_subpixel(phot, aps)
+	phot = photometry(aps_to, subt_to; f = Astroalign.PSF())
+	phot = Astroalign.to_subpixel(phot, aps_to)
 	sort!(phot; by = x -> hypot(x.aperture_f.psf_params.fwhm...), rev = true)
 end
 
@@ -217,6 +216,12 @@ Below is a quick visual check that compares our observed point source with its r
 # ╔═╡ 0083d7bb-07f2-45e6-b4f8-44099ff1a0bf
 # And "truth" fwhms for comparison
 sort(fwhms; by = x -> hypot(x...), rev = true)
+
+# ╔═╡ 1a53b727-2553-468f-9105-134f682249a2
+md"""
+!!! note
+	PSF centers are relative to the aperture, while `xcenter` and `ycenter` are relative to the whole image. Astroalign.jl performs the necessary conversions from the former to the latter in `Astroalign.to_subpixel` before reporting the final fitted values.
+"""
 
 # ╔═╡ 35befaff-e36c-4741-b28f-3589afe596cd
 function inspect_psf(phot)
@@ -275,7 +280,7 @@ This is performed internally on a per-image basis with the `Astroalign._get_phot
 md"""
 ### Step 2: Calculate invariants
 
-This is done internally in `Astroalign.align_frame`, but the computed invariants `ℳᵢ` can be exposed with `Astroalign.triangle_invariants` for plotting and debugging. Below is a plot comparing the compents of the computed invariants for all control points in our `from` and `to` images. Overlapping sections indicates similar triangle between images found by Astroalign.jl. Compare to Fig 1. in [Beroiz, M., Cabral, J. B., & Sanchez, B. (2020)](https://arxiv.org/pdf/1909.02946).
+This is done internally in `Astroalign.align_frame`, but the computed invariants ``\mathscr M_i`` can be exposed with `Astroalign.triangle_invariants` for plotting and debugging. Below is a plot comparing the compents of the computed invariants for all control points in our `from` and `to` images. Overlapping sections indicates similar triangle between images found by Astroalign.jl. Compare to Fig 1. in [Beroiz, M., Cabral, J. B., & Sanchez, B. (2020)](https://arxiv.org/pdf/1909.02946).
 """
 
 # ╔═╡ c46335bc-ae9a-4257-8a85-b4ccb94d1744
@@ -321,7 +326,7 @@ We will find this closest match next to define our point-to-point correspondence
 """
 
 # ╔═╡ dc2a101a-36d7-4402-b543-c576aba987ea
-sol_to, sol_from = find_nearest(C_to, ℳ_to, C_from, ℳ_from)
+sol_from, sol_to = find_nearest(C_from, ℳ_from, C_to, ℳ_to)
 
 # ╔═╡ bd2d9faf-7e0c-4a46-91e9-b3984dd3090e
 aps_sol_to = map(sol_to) do sol
@@ -417,11 +422,11 @@ end
 # ╔═╡ ada7cfc1-43a6-4469-8d23-7cbe37f22301
 let
 	l = Layout(;
-		xaxis = attr(title="X"),
-		yaxis = attr(title="Y"),
+		xaxis = attr(title = "X"),
+		yaxis = attr(title = "Y"),
 	)
-	p = plot(trace_hm(img; colorbar_x=1.0), l)
-	relayout!(p; shapes=circ.(aps))
+	p = plot(trace_hm(img_to; colorbar_x = 1.0), l)
+	relayout!(p; shapes = circ.(aps_to))
 	p
 end
 
@@ -507,10 +512,8 @@ fig = plot_pair(img_to, img_aligned_from)
 # ╟─a2ed7b77-1277-41a3-8c29-a9814b124d09
 # ╟─2bc269e1-dbe3-4c68-9a30-8c6054bc3a82
 # ╟─fe518d92-fbfd-4d6f-ba71-0b7b23a73fd7
-# ╠═00116e4a-8d9d-46dd-b09f-005a19ddf4ee
 # ╠═fb0efcf4-26d4-4554-a5cf-b1136f5a6c17
 # ╠═8afa31f0-ee57-4628-bedf-dd2b79faef72
-# ╠═b3c689bd-1778-4568-96b9-869f2e6a83c0
 # ╠═07abbeb9-15a4-4086-86ca-093e5475c0db
 # ╟─ada7cfc1-43a6-4469-8d23-7cbe37f22301
 # ╟─c6ef3b26-ccc1-401b-ba9b-88276d4c5067
@@ -521,6 +524,7 @@ fig = plot_pair(img_to, img_aligned_from)
 # ╟─3da14f39-9fad-412e-824b-c3db190700aa
 # ╠═68139ad3-cf00-4286-b9eb-a435dd20aca2
 # ╠═0083d7bb-07f2-45e6-b4f8-44099ff1a0bf
+# ╟─1a53b727-2553-468f-9105-134f682249a2
 # ╟─35befaff-e36c-4741-b28f-3589afe596cd
 # ╟─c73692f2-178d-4b35-badc-e9e682551989
 # ╟─0603752b-5fcc-4e14-ae41-292cc49c6711

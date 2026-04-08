@@ -47,7 +47,7 @@ function align_frame(img_from, img_to;
     C_from, ℳ_from = triangle_invariants(phot_from)
 
     # Step 3: Select nearest
-    sol_to, sol_from = find_nearest(C_to, ℳ_to, C_from, ℳ_from)
+    sol_from, sol_to = find_nearest(C_from, ℳ_from, C_to, ℳ_to)
 
     # Step 4: Determine a rigid transform
     # TODO: Support similarity transform (scale = true)
@@ -63,10 +63,10 @@ function align_frame(img_from, img_to;
         (;
             point_map,
             tfm,
-            C_to,
-            ℳ_to,
             C_from,
             ℳ_from,
+            C_to,
+            ℳ_to,
        )
     )
 end

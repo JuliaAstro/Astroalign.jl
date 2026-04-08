@@ -103,9 +103,9 @@ end
     @test propertynames(p) == (
         :point_map,
         :tfm,
-        :C_to,
-        :ℳ_to,
         :C_from,
         :ℳ_from,
+        :C_to,
+        :ℳ_to,
     )
 end
