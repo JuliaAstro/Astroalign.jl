@@ -25,7 +25,7 @@ begin
 	
 	using Revise
 	
-	using Astroalign, AstroImages, PlutoPlotly, PlutoUI, PSFModels, Rotations, Photometry, ImageTransformations, CoordinateTransformations, Latexify
+	using Astroalign, AstroImages, PlutoPlotly, PlutoUI, PSFModels, Rotations, Photometry, ImageTransformations, CoordinateTransformations, LinearAlgebra, Random
 
 	using ConsensusFitting: ransac
 	
@@ -33,12 +33,6 @@ begin
 
 	Pkg.status()
 end
-
-# ╔═╡ d97c367c-4db1-4dd0-8066-3f12e08d2f01
-using Random
-
-# ╔═╡ dec95f6d-bdfd-4407-b6dd-50e33e1f919a
-using LinearAlgebra
 
 # ╔═╡ 9e130a37-1073-4d0f-860a-0ec8d164dde1
 md"""
@@ -55,14 +49,14 @@ md"""
 
 Aligning images comes up a lot in astronomy, like for co-adding exposures or trying to do some timeseries photometry. The problem is that it can be computationally expensive to accomplish this via the traditional plate solving approach where we first need to calculate the WCS coordinates in each frame via a routine like [astrometry.net](https://astrometry.net/), and then perform the relevant coordinate transformations from there.
 
-Enter [`astroalign.py`](https://github.com/quatrope/astroalign). This really neat Python package sidesteps all of this by directly matching common star patterns between images to build this point-to-point correspondence. This notebook is an experiment to re-implement its core functionality in Julia, which we package as [JuliaAstro/Astroalign.jl](https://github.com/JuliaAstro/Astroalign.jl).
+Enter [`astroalign.py`](https://github.com/quatrope/astroalign). This neat Python package sidesteps all of this by directly matching common star patterns between images to build this point-to-point correspondence. This notebook outlines a reimplementation of its core functionality in Julia, which we package as [JuliaAstro/Astroalign.jl](https://github.com/JuliaAstro/Astroalign.jl).
 """
 
 # ╔═╡ 40c14093-3806-401f-aedf-f6435f785eb4
 md"""
 ### Usage
 
-Here is a brief usage example aligning `img_from` onto `img_to` with the exported `align` function from Astroalign.jl. Select a star field below to get started:
+Here is a brief usage example aligning `img_from` onto `img_to` with the exported `align_frame` function from Astroalign.jl. Select a star field below to get started:
 
 """
 
@@ -80,8 +74,33 @@ The rest of this notebook will walk through how this works behind the scenes.
 md"""
 ### Recovered transformation
 
-As a quick check, the underlying transformation that we want to recover is the following:
+As a quick check, here is the transformation object `tfm` returned by `Astroalign.align_frame`:
 """
+
+# ╔═╡ 0c7b43c9-0456-433c-800d-1234b66f54a0
+md"""
+Taking its inverse (to define the mapping from `img_from => img_to`), and decomposing it into its scale (`S`), rotation (`R`), and translation (`T`) components then gives:
+"""
+
+# ╔═╡ 25b3db66-d22d-4372-a15b-02031aeb01d4
+md"""
+This corresponds to the following transformation parameters:
+"""
+
+# ╔═╡ c84e1690-2176-427f-b8b2-eb5feacdcc2d
+p_diff(x, x0) = round(100 * (x - x0) / x0; digits = 3)
+
+# ╔═╡ f47dd317-6ac6-4f5f-95f8-eaca3d2820a6
+p_diff(x::AbstractVector, x0::AbstractVector) = round(100 * norm(x - x0) / norm(x0); digits = 3)
+
+# ╔═╡ 6e44a52d-cc2a-45eb-ade3-001488cd2f49
+function decompose_tfm(tfm)
+	M = tfm.linear
+	S = sqrt(M'M)
+	R = M * inv(S)
+	T = tfm.translation
+	return S, R, T
+end
 
 # ╔═╡ a1cb22fc-e956-4cf7-aafc-0168da23e556
 md"""
@@ -297,17 +316,18 @@ end;
 # And "truth" fwhms for comparison
 sort(fwhms; by = x -> hypot(x...), rev = true)
 
-# ╔═╡ 39b81373-8029-4e9c-9ea4-732722cf645e
-tfm_fwd_0 = Translation(10, 7) ∘ LinearMap(RotMatrix2(π/8)) ∘ LinearMap(0.8 * I)
+# ╔═╡ af8acb41-4cc8-4665-95f3-baaed36eed9d
+const SCALE_0, ROT_0, TRANS_0 = 0.8, π/8, [10, 7]
 
 # ╔═╡ f553bc81-dcc4-4e04-8173-beae8fe96249
-let
-	u, θ = tfm_fwd_0.translation, 2 #acosd(first(tfm_fwd_0.linear))
-
 md"""
-In this particular case, `img_from` is i) rotated clockwise by $(round(θ; digits = 1))°, and ii) translated to the left $(first(u)) pixels and down $(last(u)) pixels relative to `img_to` in the above plot. Let's fix it.
+In this particular case, `img_from` is i), **scaled by a factor of $(SCALE_0)**, ii) **rotated counter-clockwise by $(round(rad2deg(ROT_0); digits = 1))°**, and iii) **translated to the right $(first(TRANS_0)) pixels and up $(last(TRANS_0)) pixels** to arrive at `img_to` in the above plot. Let's fix it.
 """
-end
+
+# ╔═╡ 39b81373-8029-4e9c-9ea4-732722cf645e
+tfm_fwd_0 = Translation(TRANS_0...) ∘
+	LinearMap(RotMatrix2(ROT_0)) ∘
+	LinearMap(SCALE_0 * I)
 
 # ╔═╡ 13f6566d-a015-4e64-8ef5-9c7650903349
 inv(tfm_fwd_0)
@@ -377,34 +397,18 @@ arr_from_aligned, params_aligned = align_frame(img_from, img_to;
 );
 
 # ╔═╡ 30c3ecfc-f676-4bad-8a04-cc54fa3cf0c2
-tfm_aligned = inv(params_aligned.tfm)
-
-# ╔═╡ 6e44a52d-cc2a-45eb-ade3-001488cd2f49
-function decompose_tfm(tfm)
-	M = tfm_aligned.linear
-	S = sqrt(M'M)
-	R = M * inv(S)
-	T = tfm_aligned.translation
-	return S, R, T
-end
+tfm_aligned = params_aligned.tfm
 
 # ╔═╡ 94974b07-81b5-46dd-8643-6b70449ca912
-S, R, T = decompose_tfm(tfm_aligned)
+S, R, T = decompose_tfm(inv(tfm_aligned))
 
-# ╔═╡ 7fdef66b-af57-4025-bfdd-e08b4d01a73a
-θ = atand(R[2, 1], R[1, 1])
+# ╔═╡ ab647cad-f3e3-4e1d-b9b2-e9d31612e9fc
+scale, rot, trans = S[1], atan(R[2, 1], R[1, 1]), T
 
-# ╔═╡ c47959a8-2468-4e5e-9db9-8d6427b8675a
+# ╔═╡ 1a099207-213c-4326-9b38-5ba4a8bf70b8
+md"""
+which is within $(p_diff(scale, SCALE_0))%, $(p_diff(rot, ROT_0))%, and $(p_diff(trans, TRANS_0))% of our scale, rotation, and translation parameters used to originally transform `img_from` to `img_to`, respectively.
 """
-```math
-R(−$(θ)°) = \\begin{pmatrix}
-	 \\cos $(θ)° & \\sin $(θ)° \\\\
-	-\\sin $(θ)° & \\cos $(θ)°
-\\end{pmatrix} =
-
-$(latexify(tfm_fwd_0.linear; env = :raw, arraystyle = :pmatrix, fmt = "%.3f"))
-```
-""" |> Markdown.parse
 
 # ╔═╡ ad82de06-50f8-4e30-80b9-e4821e845162
 (; C_from, ℳ_from) = params_aligned; C_from, ℳ_from
@@ -484,9 +488,6 @@ function make_aps(aps; line_color = nothing, xref= :x, yref = :y)
 		for (ap, line_color) in zip(aps, line_colors)
 	]
 end
-
-# ╔═╡ 5e09f7eb-a4af-4d94-8684-96857e716747
-TableOfContents(; depth=4)
 
 # ╔═╡ d00e04d9-7a12-481b-b3b3-5c1f7e31a1a7
 # Global colorbar lims
@@ -586,6 +587,9 @@ md"""
 ## Packages 📦
 """
 
+# ╔═╡ 5e09f7eb-a4af-4d94-8684-96857e716747
+TableOfContents(; depth = 4)
+
 # ╔═╡ Cell order:
 # ╟─9e130a37-1073-4d0f-860a-0ec8d164dde1
 # ╟─fa1180d4-c1ea-4a1b-8476-0e8d185d5622
@@ -596,11 +600,15 @@ md"""
 # ╟─8769216b-00d4-44bd-97fd-7aa89cf19c23
 # ╠═445a0d35-2b49-42cc-8529-176778b0e090
 # ╟─7c1942c2-f61c-4c17-a0a5-0701c19d3d4f
-# ╠═fde0d2e4-e8ce-4861-8d53-43d58c9f8fe1
-# ╠═c47959a8-2468-4e5e-9db9-8d6427b8675a
+# ╟─fde0d2e4-e8ce-4861-8d53-43d58c9f8fe1
 # ╠═30c3ecfc-f676-4bad-8a04-cc54fa3cf0c2
+# ╟─0c7b43c9-0456-433c-800d-1234b66f54a0
 # ╠═94974b07-81b5-46dd-8643-6b70449ca912
-# ╠═7fdef66b-af57-4025-bfdd-e08b4d01a73a
+# ╟─25b3db66-d22d-4372-a15b-02031aeb01d4
+# ╠═ab647cad-f3e3-4e1d-b9b2-e9d31612e9fc
+# ╟─1a099207-213c-4326-9b38-5ba4a8bf70b8
+# ╟─c84e1690-2176-427f-b8b2-eb5feacdcc2d
+# ╟─f47dd317-6ac6-4f5f-95f8-eaca3d2820a6
 # ╟─6e44a52d-cc2a-45eb-ade3-001488cd2f49
 # ╟─a1cb22fc-e956-4cf7-aafc-0168da23e556
 # ╟─c5658a61-99e2-4008-a542-9e12bf70ee9b
@@ -648,19 +656,18 @@ md"""
 # ╟─eff56f6e-ab01-4371-a75f-f44bdde7cfd6
 # ╠═dc01eaaa-f1d0-4bc6-884f-778d848918c6
 # ╠═78c0bf28-bb96-4aea-8bf5-5929ef45adc1
-# ╠═d97c367c-4db1-4dd0-8066-3f12e08d2f01
 # ╠═0ae46a86-dd86-4092-9d34-05f643ec08af
 # ╠═95531bde-8386-4d51-8c83-ffb796a41e90
-# ╠═dec95f6d-bdfd-4407-b6dd-50e33e1f919a
+# ╠═af8acb41-4cc8-4665-95f3-baaed36eed9d
 # ╠═39b81373-8029-4e9c-9ea4-732722cf645e
 # ╠═13f6566d-a015-4e64-8ef5-9c7650903349
 # ╠═5882adec-7591-4d93-98e2-efb81496c54d
 # ╠═f7639401-1fc9-4cb1-824c-4335a4bb8b25
 # ╟─1e8aaba0-645e-48c0-b4e1-b9e8f4c81c86
-# ╠═1cf184a4-ec99-4cd2-8559-5d52b41ec629
+# ╟─1cf184a4-ec99-4cd2-8559-5d52b41ec629
 # ╟─b461aadf-f88c-4195-8715-35e1e24a9bb4
-# ╠═de7ff589-99c0-4625-8a10-86aa702d2510
-# ╠═5e09f7eb-a4af-4d94-8684-96857e716747
+# ╟─de7ff589-99c0-4625-8a10-86aa702d2510
 # ╠═d00e04d9-7a12-481b-b3b3-5c1f7e31a1a7
 # ╟─84ce90fc-f8a9-47ac-8f3f-c83899027a4d
+# ╠═5e09f7eb-a4af-4d94-8684-96857e716747
 # ╠═d8d4c414-64a0-11f0-15a3-0d566872a687
