@@ -21,7 +21,7 @@ This is achieved via the following algorithm:
 2. Calculate all triangular asterisms formed from these sources.
 3. Build a `2 × 3 × 2 × N` array of candidate triangle-level correspondences
    by matching each from-triangle to its nearest to-triangle in
-   the invariant ``\mathscr M`` space defined by [Beroiz et al. (2020)](https://ui.adsabs.harvard.edu/abs/2020A%26C....3200384B/abstract).
+   the invariant ``\\mathscr M`` space defined by [Beroiz et al. (2020)](https://ui.adsabs.harvard.edu/abs/2020A%26C....3200384B/abstract).
    Vertices are assigned via a canonical ordering that is invariant under
    rotation, so the positional correspondence between matched triangles is
    geometrically consistent. The axes are `[coord, vertex, frame, match]`
