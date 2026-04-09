@@ -454,14 +454,35 @@ md"""
 """
 
 # ╔═╡ 1cf184a4-ec99-4cd2-8559-5d52b41ec629
-function circ(ap; line_color = :lightgreen)
+function circ(ap; xref = :x, yref = :y, line_color = :lightgreen)
 	circle(
 		ap.x - ap.r, # x_min
 		ap.x + ap.r, # x_max
 		ap.y - ap.r, # y_min
 		ap.y + ap.r; # y_max
 		line_color,
+		xref,
+		yref
 	)
+end
+
+# ╔═╡ 0612c049-c6d1-4e6a-a44a-b2f93a39a2c6
+function make_aps(aps; line_color = nothing, xref= :x, yref = :y)
+	N = length(aps)
+	
+	line_colors = if isnothing(line_color)
+		[
+			string("hsl(", round(Int, 360 * i / N), ", 70%, 55%)")
+			for i in 1:N
+		]
+	else
+		fill(line_color, N)
+	end
+	
+	return [
+		circ(ap; line_color, xref, yref)
+		for (ap, line_color) in zip(aps, line_colors)
+	]
 end
 
 # ╔═╡ 5e09f7eb-a4af-4d94-8684-96857e716747
@@ -494,46 +515,8 @@ function trace_hm(img; colorbar_x=0)
 	)
 end
 
-# ╔═╡ 0612c049-c6d1-4e6a-a44a-b2f93a39a2c6
- function plot_aps(img, aps; line_color = nothing)
-	l = Layout(;
-		xaxis = attr(title = "X"),
-		yaxis = attr(title = "Y"),
-	)
-
-	p = plot(trace_hm(img; colorbar_x = 1.0), l)
-	
-	N = length(aps)
-	
-	if isnothing(line_color)
-		line_colors = [
-			string("hsl(", round(Int, 360 * i / N), ", 70%, 55%)")
-			for i in 1:N
-		]
-	else
-		line_colors = fill(line_color, N)
-	end
-	
-	relayout!(p;
-		shapes = [
-			circ(ap; line_color)
-			for (ap, line_color) in zip(aps, line_colors)
-		]
-	)
-	p
-end
-
-# ╔═╡ 99a21356-1805-48c7-aae1-d2ddc8305aca
-plot_aps(img_to, aps_to; line_color = :lightgreen)
-
-# ╔═╡ 5a7f9cd0-15cf-44be-af6d-9bc16045ff85
-plot_aps(img_from, aps_sol_from)
-
-# ╔═╡ 05537e5b-347a-4198-80e9-7eeed85b08ca
-plot_aps(img_to, aps_sol_to)
-
 # ╔═╡ de7ff589-99c0-4625-8a10-86aa702d2510
-function plot_pair(img_left, img_right; column_titles=["img_left", "img_right"])
+function plot_pair(img_left, img_right; column_titles=["img_left", "img_right"], aps_left = nothing, aps_right = nothing, aps_left_line_color = nothing, aps_right_line_color = nothing)
 	# Set up some subplots
 	fig = make_subplots(;
 		rows = 1,	
@@ -544,18 +527,28 @@ function plot_pair(img_left, img_right; column_titles=["img_left", "img_right"])
 	)
 	
 	# Make the subplot titles a smidgen bit smaller
-	update_annotations!(fig, font_size=14)
+	update_annotations!(fig, font_size = 14)
 	
 	# Manually place the colorbars so they don't clash
 	p1 = add_trace!(fig, trace_hm(img_left; colorbar_x = 0.45), col = 1)
 	p2 = add_trace!(fig, trace_hm(img_right; colorbar_x = 1), col = 2)
 
+	
 	# Keep the images true to size
 	update_xaxes!(fig, matches = "x", scaleanchor = :y, title = "X (pixels)")
 	update_yaxes!(fig, matches = "y", scaleanchor = :x)
 
 	# Add a shared y-label
-	relayout!(fig, Layout(yaxis_title = "Y (pixels)"), font_size = 10, template = "plotly_white", margin = attr(t = 20), uirevision = 1)
+	relayout!(fig, Layout(yaxis_title = "Y (pixels)");
+		font_size = 10,
+		template = "plotly_white",
+		margin = attr(t = 20),
+		uirevision = 1,
+		shapes = [
+			(isnothing(aps_left) ? [] : make_aps(aps_left;  line_color=aps_left_line_color, xref = :x,  yref = :y))...,
+			(isnothing(aps_right) ? [] : make_aps(aps_right; line_color=aps_right_line_color, xref= :x2, yref = :y2))...,
+    	]
+	)
 
 	# Display
 	return fig
@@ -566,6 +559,24 @@ plot_pair(img_from, img_to; column_titles = ["img_from", "img_to"])
 
 # ╔═╡ 8769216b-00d4-44bd-97fd-7aa89cf19c23
 plot_pair(arr_from_aligned, img_to; column_titles = ["img_from (aligned)", "img_to"])
+
+# ╔═╡ 391d8c47-21f4-43b8-85ce-7c2e943fde9d
+plot_pair(img_from, img_to;
+	column_titles = ["img_from", "img_to"],
+	# aps_left = aps_sol_from,
+	# aps_left_line_color = :lightgreen,
+	aps_right = aps_to,
+	aps_right_line_color = :lightgreen,
+)
+
+# ╔═╡ 41136c70-f0ed-435b-b449-5d71e04e9c35
+plot_pair(img_from, img_to;
+	column_titles = ["img_from", "img_to"],
+	aps_left = aps_sol_from,
+	# aps_left_line_color = :lightgreen,
+	aps_right = aps_sol_to,
+	# aps_right_line_color = :lightgreen,
+)
 
 # ╔═╡ 066210ea-b5b3-4f73-8fc1-503625fc32ce
 fig = plot_pair(img_to, img_aligned_from)
@@ -599,7 +610,7 @@ md"""
 # ╠═fb0efcf4-26d4-4554-a5cf-b1136f5a6c17
 # ╠═8afa31f0-ee57-4628-bedf-dd2b79faef72
 # ╠═07abbeb9-15a4-4086-86ca-093e5475c0db
-# ╠═99a21356-1805-48c7-aae1-d2ddc8305aca
+# ╠═391d8c47-21f4-43b8-85ce-7c2e943fde9d
 # ╟─c6ef3b26-ccc1-401b-ba9b-88276d4c5067
 # ╟─b0ad71b1-3a3c-481b-a08e-2ee558e8e1c5
 # ╠═4e1c0615-d26d-4147-a096-d20940b8046a
@@ -626,8 +637,7 @@ md"""
 # ╠═bd2d9faf-7e0c-4a46-91e9-b3984dd3090e
 # ╠═7f0b20db-e369-4e6a-aa5e-7df949791915
 # ╠═0612c049-c6d1-4e6a-a44a-b2f93a39a2c6
-# ╠═5a7f9cd0-15cf-44be-af6d-9bc16045ff85
-# ╠═05537e5b-347a-4198-80e9-7eeed85b08ca
+# ╠═41136c70-f0ed-435b-b449-5d71e04e9c35
 # ╟─1150fd19-ece7-4fd0-91db-a4df982d1e8e
 # ╠═6646cf68-daf0-4a83-b3a8-43415ee8f97f
 # ╠═9db16b0e-1e1e-40a5-b7f4-56f819f4e0b1
@@ -647,9 +657,9 @@ md"""
 # ╠═5882adec-7591-4d93-98e2-efb81496c54d
 # ╠═f7639401-1fc9-4cb1-824c-4335a4bb8b25
 # ╟─1e8aaba0-645e-48c0-b4e1-b9e8f4c81c86
-# ╟─1cf184a4-ec99-4cd2-8559-5d52b41ec629
+# ╠═1cf184a4-ec99-4cd2-8559-5d52b41ec629
 # ╟─b461aadf-f88c-4195-8715-35e1e24a9bb4
-# ╟─de7ff589-99c0-4625-8a10-86aa702d2510
+# ╠═de7ff589-99c0-4625-8a10-86aa702d2510
 # ╠═5e09f7eb-a4af-4d94-8684-96857e716747
 # ╠═d00e04d9-7a12-481b-b3b3-5c1f7e31a1a7
 # ╟─84ce90fc-f8a9-47ac-8f3f-c83899027a4d
