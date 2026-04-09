@@ -21,7 +21,7 @@ This is achieved via the following algorithm:
 2. Calculate all triangular asterisms formed from these sources.
 3. Build a `2 × 3 × 2 × N` array of candidate triangle-level correspondences
    by matching each from-triangle to its nearest to-triangle in
-   the invariant ``\\mathscr M`` space defined by [Beroiz et al. (2020)](https://ui.adsabs.harvard.edu/abs/2020A%26C....3200384B/abstract).
+   the invariant ``\mathscr M`` space defined by [Beroiz et al. (2020)](https://ui.adsabs.harvard.edu/abs/2020A%26C....3200384B/abstract).
    Vertices are assigned via a canonical ordering that is invariant under
    rotation, so the positional correspondence between matched triangles is
    geometrically consistent. The axes are `[coord, vertex, frame, match]`
@@ -88,7 +88,7 @@ function align_frame(img_from, img_to;
     # then re-score all correspondences to update inlier_idxs. Using the full
     # array (not the previous inlier subset) lets previously-missed inliers be
     # recovered and incorrectly accepted ones drop out.
-    # Note that _triangle_distfn expects a from =>to transform.
+    # Note that _triangle_distfn expects a from => to transform.
     for _ in 1:final_iters
         isempty(inlier_idxs) && break
         pts_from = reshape(correspondences[:, :, 1, inlier_idxs], 2, :)  # 2 × 3·N_inliers
