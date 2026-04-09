@@ -67,7 +67,7 @@ Here is a brief usage example aligning `img_from` onto `img_to` with the exporte
 md"""
 That's it!
 
-The rest of this notebook will walk through how this works behind the scenes.
+The rest of this notebook will walk through how this works behind the scenes and the various knobs that you can turn.
 """
 
 # ╔═╡ fde0d2e4-e8ce-4861-8d53-43d58c9f8fe1
@@ -79,12 +79,12 @@ As a quick check, here is the transformation object `tfm` returned by `Astroalig
 
 # ╔═╡ 0c7b43c9-0456-433c-800d-1234b66f54a0
 md"""
-Taking its inverse (to define the mapping from `img_from => img_to`), and decomposing it into its scale (`S`), rotation (`R`), and translation (`T`) components then gives:
+Taking its inverse (to define the mapping from `img_from => img_to`), and decomposing it into its scale (`S`), rotation (`R`), and translation (`T`) components then gives (rounded for display):
 """
 
 # ╔═╡ 25b3db66-d22d-4372-a15b-02031aeb01d4
 md"""
-This corresponds to the following transformation parameters:
+This gives the following transformation parameters:
 """
 
 # ╔═╡ c84e1690-2176-427f-b8b2-eb5feacdcc2d
@@ -99,13 +99,8 @@ function decompose_tfm(tfm)
 	S = sqrt(M'M)
 	R = M * inv(S)
 	T = tfm.translation
-	return S, R, T
+	return (; S, R, T)
 end
-
-# ╔═╡ a1cb22fc-e956-4cf7-aafc-0168da23e556
-md"""
-For even more control, each step of the alignment process has an associated API that can be used from Astroalign.jl, along with additional parameters returned by `Astroalign.align_frame`, which we show in the rest of this notebook.
-"""
 
 # ╔═╡ c5658a61-99e2-4008-a542-9e12bf70ee9b
 md"""
@@ -129,7 +124,7 @@ Astroalign.jl accomplishes this in the following steps:
 2. Calculate all triangular asterisms formed from these sources.
 3. Build a `2 × 3 × 2 × N` array of candidate triangle-level correspondences
    by matching each from-triangle to its nearest to-triangle in
-   the invariant ``\\mathscr M`` space defined by [Beroiz et al. (2020)](https://ui.adsabs.harvard.edu/abs/2020A%26C....3200384B/abstract).
+   the invariant ``\mathscr M`` space defined by [Beroiz et al. (2020)](https://ui.adsabs.harvard.edu/abs/2020A%26C....3200384B/abstract).
    Vertices are assigned via a canonical ordering that is invariant under
    rotation, so the positional correspondence between matched triangles is
    geometrically consistent.  The axes are `[coord, vertex, frame, match]`
@@ -218,10 +213,9 @@ function inspect_psf(phot)
 	return AstroImage(psf_data), imview(psf_model.(CartesianIndices(psf_data)))
 end
 
-# ╔═╡ 0d4ce3b5-665a-4cc8-8884-90600e99f6ba
+# ╔═╡ c73692f2-178d-4b35-badc-e9e682551989
 md"""
-!!! todo
-	Add graceful handling of duplicate matches from, e.g., hot pixels that managed to sneak through.
+Looks to be fitting alright! From here, results can be sorted and filtered as needed. By default, Astrolign.jl sorts from largest to smallest FWHM.
 """
 
 # ╔═╡ 255cb3ee-2ac4-4b20-8d4f-785ca9400668
@@ -233,7 +227,7 @@ This is done internally in `Astroalign.align_frame`, but the computed invariants
 
 # ╔═╡ d1d3f995-b901-4aab-86cd-e2d6f2393190
 md"""
-This can also be accessed through the `align_params` named tuple returned by `Astroalign.align_frame` in the [Usage](#Usage) example. We will use this to get the corresponding invariants for our `from` image;
+This can also be accessed through the named tuple returned by `Astroalign.align_frame` in the [Usage](#Usage) example. We will use this to get the corresponding invariants for our `from` image;
 """
 
 # ╔═╡ 23a1364a-4ba0-42af-93bf-b6f900b9a13d
@@ -244,16 +238,19 @@ Note that the number of combinations of triangles in each frame can differ if th
 # ╔═╡ dffa0f3c-100f-4916-96c7-90274c0df5f2
 md"""
 ### Step 3: Build candidates
+
+We next build our list of candidate correspondences in this invariant space via a nearest neighbors search.
 """
 
 # ╔═╡ 5dd82850-91d7-4b57-81df-e32dcc28eab9
 md"""
 ### Step 4: Refine candidate list
 
-Via RANSAC method.
+Next, we find the largest set of mutually consistent correspondences (inliers) via a RANSAC pass.
 """
 
 # ╔═╡ 1c6b9f26-a418-4e47-8f6a-50a78f627ba8
+# TODO: Come up with a better name?
 function step4(correspondences; scale = false, ransac_threshold = 3.0)		
 	fittingfn = scale ? Astroalign._fit_minimal_similarity_triangle : Astroalign._fit_minimal_rigid_triangle
     
@@ -265,6 +262,13 @@ end
 # ╔═╡ 1150fd19-ece7-4fd0-91db-a4df982d1e8e
 md"""
 ### Step 5. Refine transformation
+
+The previous step returns an initial proposed transformation and corresponding set of inliers, which we then successively refine using all detected control points. This lets us capture previously-missed inliers while dropping incorrectly assigned inliers in previous passes.
+"""
+
+# ╔═╡ e116588d-5793-446f-b5b9-1a13bc2733ad
+md"""
+We visualize the final set of corresponding control points below:
 """
 
 # ╔═╡ 614bc7c4-6ba6-448b-9e82-aad968133622
@@ -295,14 +299,11 @@ function step_5(correspondences, fwd_tfm_initial, inlier_idxs_initial;
 	return unique(point_map), inv(fwd_tfm)
 end
 
-# ╔═╡ 3779aed1-a02d-4370-8d56-37a2a5d374bf
-md"""
-We can now hand off this transformation to an image transformation library like `JuliaAstroImages.ImageTransformations` to view our final results. This should match our results returned by `Astroalign.align_frame` in the [Usage](#Usage) example.
-"""
-
 # ╔═╡ 463f4963-4b5c-40f2-baaa-6f1180988990
 md"""
 ### Step 6: Apply transformation
+
+We can now hand off this transformation to an image transformation library like [JuliaAstroImages/ImageTransformations.jl](https://github.com/JuliaImages/ImageTransformations.jl) to view our final results. This should match our results returned by `Astroalign.align_frame` in the [Usage](#Usage) example.
 """
 
 # ╔═╡ dd9296e8-0112-41e1-9ccc-4a3e813e2836
@@ -310,13 +311,28 @@ md"""
 # 🔧 Notebook setup
 """
 
+# ╔═╡ af8acb41-4cc8-4665-95f3-baaed36eed9d
+# "Truth" values for transformation
+const SCALE_0, ROT_0, TRANS_0 = 0.8, π/8, [10, 7]
+
+# ╔═╡ f553bc81-dcc4-4e04-8173-beae8fe96249
+"""
+In this particular case, `img_from` is i) **scaled by a factor of $(SCALE_0)**, ii) **rotated counter-clockwise by $(round(rad2deg(ROT_0); digits = 1))° ($(round(ROT_0; digits = 3)) rad)**, and iii) **translated to the right $(first(TRANS_0)) pixels and up $(last(TRANS_0)) pixels** to arrive at `img_to` in the above plot. Let's fix it.
+""" |> Markdown.parse
+
+# ╔═╡ 39b81373-8029-4e9c-9ea4-732722cf645e
+tfm_fwd_0 = Translation(TRANS_0...) ∘
+	LinearMap(RotMatrix2(ROT_0)) ∘
+	LinearMap(SCALE_0 * I)
+
 # ╔═╡ dc01eaaa-f1d0-4bc6-884f-778d848918c6
 const N_sources = 12
 
-# ╔═╡ c73692f2-178d-4b35-badc-e9e682551989
-md"""
-Looks to be fitting alright! From here, results can be sorted and filtered as needed. By default, Astrolign.jl sorts from largest to smallest FWHM. We will just use all $(N_sources) sources here to help fill out our search space in the final alignment step next.
-"""
+# ╔═╡ 6f943630-9a40-425e-8920-2911653e11d9
+const RNG = Xoshiro(seed)
+
+# ╔═╡ beee8408-60e9-444e-bcfa-19acf91a8171
+const FWHMS = [rand(RNG, 1:10) for _ in 1:N_sources]
 
 # ╔═╡ 78c0bf28-bb96-4aea-8bf5-5929ef45adc1
 img_size = (1:300, 1:300)
@@ -325,38 +341,8 @@ img_size = (1:300, 1:300)
 md"""
 ## Star field generator ✨
 
-For simplicity, we'll just create $(N_sources) Gaussian point sources in a $(length(first(img_size))) x $(length(last(img_size))) grid with some noise over the whole image. We can then check our fitted values against these "truth" values at the end.
+For simplicity, we'll just create $(N_sources) Gaussian point sources placed randomly in a $(length(first(img_size))) x $(length(last(img_size))) grid with some noise over the whole image. We can then check our fitted values against these "truth" values at the end.
 """
-
-# ╔═╡ 0ae46a86-dd86-4092-9d34-05f643ec08af
-begin
-	rng = Xoshiro(seed)
-	fwhms = [rand(rng, 1:10) for _ in 1:N_sources]
-	# Uncomment for extended sources
-	# fwhms = [(rand(rng, 1:20), rand(rng, 1:20)) for _ in 1:N_sources]
-	pad = 10 # Minimum space etween the stars (in pixels)
-	positions_to = rand(rng, 1+pad:pad:300-pad, N_sources, 2)
-end;
-
-# ╔═╡ 0083d7bb-07f2-45e6-b4f8-44099ff1a0bf
-# And "truth" fwhms for comparison
-sort(fwhms; by = x -> hypot(x...), rev = true)
-
-# ╔═╡ af8acb41-4cc8-4665-95f3-baaed36eed9d
-const SCALE_0, ROT_0, TRANS_0 = 0.8, π/8, [10, 7]
-
-# ╔═╡ f553bc81-dcc4-4e04-8173-beae8fe96249
-md"""
-In this particular case, `img_from` is i), **scaled by a factor of $(SCALE_0)**, ii) **rotated counter-clockwise by $(round(rad2deg(ROT_0); digits = 1))°**, and iii) **translated to the right $(first(TRANS_0)) pixels and up $(last(TRANS_0)) pixels** to arrive at `img_to` in the above plot. Let's fix it.
-"""
-
-# ╔═╡ 39b81373-8029-4e9c-9ea4-732722cf645e
-tfm_fwd_0 = Translation(TRANS_0...) ∘
-	LinearMap(RotMatrix2(ROT_0)) ∘
-	LinearMap(SCALE_0 * I)
-
-# ╔═╡ 13f6566d-a015-4e64-8ef5-9c7650903349
-inv(tfm_fwd_0)
 
 # ╔═╡ f7639401-1fc9-4cb1-824c-4335a4bb8b25
 # Modified from
@@ -369,8 +355,15 @@ function generate_model(rng, model, params, inds)
 end
 
 # ╔═╡ 95531bde-8386-4d51-8c83-ffb796a41e90
-img_to = map(zip(eachrow(positions_to), fwhms)) do ((x, y), fwhm)
-	generate_model(rng, gaussian, (; x, y, fwhm), img_size)
+img_to = let
+	# Uncomment for extended sources
+	# fwhms = [(rand(rng, 1:20), rand(rng, 1:20)) for _ in 1:N_sources]
+	pad = 10 # Minimum space etween the stars (in pixels)
+	positions_to = rand(RNG, 1+pad:pad:300-pad, N_sources, 2)
+	
+	map(zip(eachrow(positions_to), FWHMS)) do ((x, y), fwhm)
+		generate_model(RNG, gaussian, (; x, y, fwhm), img_size)
+	end
 end |> sum |> AstroImage;
 
 # ╔═╡ fb0efcf4-26d4-4554-a5cf-b1136f5a6c17
@@ -429,16 +422,76 @@ arr_from_aligned, params_aligned = align_frame(img_from, img_to;
 # ╔═╡ 30c3ecfc-f676-4bad-8a04-cc54fa3cf0c2
 tfm_aligned = params_aligned.tfm
 
+# ╔═╡ f72f1cd6-b3ff-4737-b7c2-bbca3e6c5b0f
+PlutoUI.ExperimentalLayout.hbox(
+	[
+		"""
+		Linear part:
+		
+		```julia
+		$(repr("text/plain", tfm_aligned.linear))
+		```
+		""",
+				
+		"""
+		Translation part:
+		
+		```julia
+		$(repr("text/plain", tfm_aligned.translation))
+		```
+		"""
+	] .|> Markdown.parse; style = Dict("gap" => "1rem"),
+)
+
 # ╔═╡ 94974b07-81b5-46dd-8643-6b70449ca912
 S, R, T = decompose_tfm(inv(tfm_aligned))
 
+# ╔═╡ 2cd7bbd0-8ced-4e8c-9c05-a16e9710bcc8
+PlutoUI.ExperimentalLayout.hbox(
+	[
+		"""
+		Scale:
+		
+		```julia
+		$(repr("text/plain", round.(S; digits = 3)))
+		```
+		""",
+				
+		"""
+		Rotation:
+		
+		```julia
+		$(repr("text/plain", round.(R; digits = 3)))
+		```
+		""",
+
+		"""
+		Translation:
+		
+		```julia
+		$(repr("text/plain", round.(T; digits = 3)))
+		```
+		"""
+	] .|> Markdown.parse; style = Dict("gap" => "1rem"),
+)
+
 # ╔═╡ ab647cad-f3e3-4e1d-b9b2-e9d31612e9fc
-scale, rot, trans = S[1], atan(R[2, 1], R[1, 1]), T
+params_tfm = (scale = S[1], rot = atan(R[2, 1], R[1, 1]), trans = T)
 
 # ╔═╡ 1a099207-213c-4326-9b38-5ba4a8bf70b8
-md"""
-which is within $(p_diff(scale, SCALE_0))%, $(p_diff(rot, ROT_0))%, and $(p_diff(trans, TRANS_0))% of our scale, rotation, and translation parameters used to originally transform `img_from` to `img_to`, respectively.
-"""
+let
+	n_inliers = length(params_aligned.inlier_idxs)
+	n_total = size(params_aligned.correspondences, 4)
+	perc = round(100 * n_inliers / n_total; digits = 1)
+
+	"""
+	which are within **$(p_diff(params_tfm.scale, SCALE_0))%, $(p_diff(params_tfm.rot, ROT_0))%, and $(p_diff(params_tfm.trans, TRANS_0))%** of our scale, rotation, and translation parameters used to originally transform `img_from` to `img_to`, respectively.
+	
+	Taking a look at our RANSAC pass, these final transformation values were determined from $(n_inliers) out of $(n_total) detected correspondences ($(perc) %) 
+	
+	For even more control and instrospection, each step of the alignment process has an associated API that can be used from Astroalign.jl, along with additional parameters returned by `Astroalign.align_frame`, which we show in the rest of this notebook.
+	""" |> Markdown.parse
+end
 
 # ╔═╡ ad82de06-50f8-4e30-80b9-e4821e845162
 (; C_from, ℳ_from) = params_aligned; C_from, ℳ_from
@@ -472,6 +525,7 @@ fwd_tfm_initial, inlier_idxs_initial = step4(correspondences;
 )
 
 # ╔═╡ 5041a969-a40e-49ee-8467-e1a38f81b7a6
+# TODO: Come up with a better name?
 point_map, tfm = step_5(correspondences, fwd_tfm_initial, inlier_idxs_initial;
 	scale = true,
 	ransac_threshold = 3.0,
@@ -480,13 +534,12 @@ point_map, tfm = step_5(correspondences, fwd_tfm_initial, inlier_idxs_initial;
 # ╔═╡ bd2d9faf-7e0c-4a46-91e9-b3984dd3090e
 aps_sol_from = map(point_map) do sol
 	CircularAperture(sol.first[1], sol.first[2], ap_radius)
-end
-# aps_sol_to = [CircularAperture(227.997, 210.806, ap_radius)]
+end;
 
 # ╔═╡ 7f0b20db-e369-4e6a-aa5e-7df949791915
 aps_sol_to = map(point_map) do sol
 	CircularAperture(sol.second[1], sol.second[2], ap_radius)
-end
+end;
 
 # ╔═╡ 7990c8be-9425-47d0-a913-9e2bb4fbefd1
 img_aligned_from = shareheader(img_from, warp(img_from, tfm, axes(img_to)));
@@ -495,6 +548,14 @@ img_aligned_from = shareheader(img_from, warp(img_from, tfm, axes(img_to)));
 md"""
 ## Plotly helpers 🎨
 """
+
+# ╔═╡ d00e04d9-7a12-481b-b3b3-5c1f7e31a1a7
+# Global colorbar lims
+const ZMIN, ZMAX = let
+	# lims = Zscale(contrast=0.4).((img₁, img₂))
+	lims = Percent(99.5).((img_to, img_from))
+	minimum(first, lims), maximum(last, lims)
+end
 
 # ╔═╡ 1cf184a4-ec99-4cd2-8559-5d52b41ec629
 function circ(ap; xref = :x, yref = :y, line_color = :lightgreen)
@@ -506,6 +567,25 @@ function circ(ap; xref = :x, yref = :y, line_color = :lightgreen)
 		line_color,
 		xref,
 		yref
+	)
+end
+
+# ╔═╡ b461aadf-f88c-4195-8715-35e1e24a9bb4
+function trace_hm(img; colorbar_x=0)
+	imgv = copy(img)
+	# Restriction prescription from AstroImages.jl/Images.jl
+	# so plotting doesn't blow up for large images
+	while length(eachindex(imgv)) > 10^6
+		imgv = restrict(imgv)
+	end
+	imgv = permutedims(imgv)
+	
+	# zmin, zmax = Zscale(contrast=0.4)(img)
+	return heatmap(x=dims(imgv, X).val, y=dims(imgv, Y).val, z=Matrix(imgv);
+		zmin = ZMIN,
+		zmax = ZMAX,
+		colorscale = :Cividis,
+		colorbar = attr(x=colorbar_x, thickness=10, title="Counts"),
 	)
 end
 
@@ -526,33 +606,6 @@ function make_aps(aps; line_color = nothing, xref= :x, yref = :y)
 		circ(ap; line_color, xref, yref)
 		for (ap, line_color) in zip(aps, line_colors)
 	]
-end
-
-# ╔═╡ d00e04d9-7a12-481b-b3b3-5c1f7e31a1a7
-# Global colorbar lims
-const ZMIN, ZMAX = let
-	# lims = Zscale(contrast=0.4).((img₁, img₂))
-	lims = Percent(99.5).((img_to, img_from))
-	minimum(first, lims), maximum(last, lims)
-end
-
-# ╔═╡ b461aadf-f88c-4195-8715-35e1e24a9bb4
-function trace_hm(img; colorbar_x=0)
-	imgv = copy(img)
-	# Restriction prescription from AstroImages.jl/Images.jl
-	# so plotting doesn't blow up for large images
-	while length(eachindex(imgv)) > 10^6
-		imgv = restrict(imgv)
-	end
-	imgv = permutedims(imgv)
-	
-	# zmin, zmax = Zscale(contrast=0.4)(img)
-	return heatmap(x=dims(imgv, X).val, y=dims(imgv, Y).val, z=Matrix(imgv);
-		zmin = ZMIN,
-		zmax = ZMAX,
-		colorscale = :Cividis,
-		colorbar = attr(x=colorbar_x, thickness=10, title="Counts"),
-	)
 end
 
 # ╔═╡ de7ff589-99c0-4625-8a10-86aa702d2510
@@ -619,7 +672,9 @@ plot_pair(img_from, img_to;
 )
 
 # ╔═╡ 066210ea-b5b3-4f73-8fc1-503625fc32ce
-fig = plot_pair(img_to, img_aligned_from)
+fig = plot_pair(img_aligned_from, img_to;
+	column_titles = ["img_aligned_from", "img_to"]
+)
 
 # ╔═╡ 84ce90fc-f8a9-47ac-8f3f-c83899027a4d
 md"""
@@ -641,15 +696,16 @@ TableOfContents(; depth = 4)
 # ╟─7c1942c2-f61c-4c17-a0a5-0701c19d3d4f
 # ╟─fde0d2e4-e8ce-4861-8d53-43d58c9f8fe1
 # ╠═30c3ecfc-f676-4bad-8a04-cc54fa3cf0c2
+# ╟─f72f1cd6-b3ff-4737-b7c2-bbca3e6c5b0f
 # ╟─0c7b43c9-0456-433c-800d-1234b66f54a0
+# ╟─2cd7bbd0-8ced-4e8c-9c05-a16e9710bcc8
 # ╠═94974b07-81b5-46dd-8643-6b70449ca912
 # ╟─25b3db66-d22d-4372-a15b-02031aeb01d4
 # ╠═ab647cad-f3e3-4e1d-b9b2-e9d31612e9fc
 # ╟─1a099207-213c-4326-9b38-5ba4a8bf70b8
+# ╟─6e44a52d-cc2a-45eb-ade3-001488cd2f49
 # ╟─c84e1690-2176-427f-b8b2-eb5feacdcc2d
 # ╟─f47dd317-6ac6-4f5f-95f8-eaca3d2820a6
-# ╟─6e44a52d-cc2a-45eb-ade3-001488cd2f49
-# ╟─a1cb22fc-e956-4cf7-aafc-0168da23e556
 # ╟─c5658a61-99e2-4008-a542-9e12bf70ee9b
 # ╟─c0b252bb-e621-45b6-987f-85f7a0211271
 # ╟─a2ed7b77-1277-41a3-8c29-a9814b124d09
@@ -666,11 +722,9 @@ TableOfContents(; depth = 4)
 # ╟─9109a7a0-4a37-4dca-a923-16a9302556ee
 # ╟─3da14f39-9fad-412e-824b-c3db190700aa
 # ╠═68139ad3-cf00-4286-b9eb-a435dd20aca2
-# ╠═0083d7bb-07f2-45e6-b4f8-44099ff1a0bf
 # ╟─1a53b727-2553-468f-9105-134f682249a2
 # ╟─35befaff-e36c-4741-b28f-3589afe596cd
 # ╟─c73692f2-178d-4b35-badc-e9e682551989
-# ╟─0d4ce3b5-665a-4cc8-8884-90600e99f6ba
 # ╟─255cb3ee-2ac4-4b20-8d4f-785ca9400668
 # ╟─cdba7937-eea8-409a-b9e3-714e4516486c
 # ╠═c46335bc-ae9a-4257-8a85-b4ccb94d1744
@@ -680,35 +734,35 @@ TableOfContents(; depth = 4)
 # ╟─dffa0f3c-100f-4916-96c7-90274c0df5f2
 # ╠═2c3e0706-556a-4fdb-bbc5-85b5f90b3649
 # ╟─5dd82850-91d7-4b57-81df-e32dcc28eab9
-# ╠═1c6b9f26-a418-4e47-8f6a-50a78f627ba8
 # ╠═12d45273-f8c0-4b59-bcd6-296b4ebbb978
+# ╟─1c6b9f26-a418-4e47-8f6a-50a78f627ba8
 # ╟─1150fd19-ece7-4fd0-91db-a4df982d1e8e
-# ╠═614bc7c4-6ba6-448b-9e82-aad968133622
 # ╠═5041a969-a40e-49ee-8467-e1a38f81b7a6
+# ╟─e116588d-5793-446f-b5b9-1a13bc2733ad
 # ╠═bd2d9faf-7e0c-4a46-91e9-b3984dd3090e
 # ╠═7f0b20db-e369-4e6a-aa5e-7df949791915
-# ╠═0612c049-c6d1-4e6a-a44a-b2f93a39a2c6
 # ╠═41136c70-f0ed-435b-b449-5d71e04e9c35
-# ╟─3779aed1-a02d-4370-8d56-37a2a5d374bf
+# ╟─614bc7c4-6ba6-448b-9e82-aad968133622
 # ╟─463f4963-4b5c-40f2-baaa-6f1180988990
 # ╠═7990c8be-9425-47d0-a913-9e2bb4fbefd1
 # ╠═066210ea-b5b3-4f73-8fc1-503625fc32ce
 # ╟─dd9296e8-0112-41e1-9ccc-4a3e813e2836
 # ╟─eff56f6e-ab01-4371-a75f-f44bdde7cfd6
-# ╠═dc01eaaa-f1d0-4bc6-884f-778d848918c6
-# ╠═78c0bf28-bb96-4aea-8bf5-5929ef45adc1
-# ╠═0ae46a86-dd86-4092-9d34-05f643ec08af
-# ╠═95531bde-8386-4d51-8c83-ffb796a41e90
 # ╠═af8acb41-4cc8-4665-95f3-baaed36eed9d
 # ╠═39b81373-8029-4e9c-9ea4-732722cf645e
-# ╠═13f6566d-a015-4e64-8ef5-9c7650903349
+# ╠═dc01eaaa-f1d0-4bc6-884f-778d848918c6
+# ╠═beee8408-60e9-444e-bcfa-19acf91a8171
+# ╠═6f943630-9a40-425e-8920-2911653e11d9
+# ╠═78c0bf28-bb96-4aea-8bf5-5929ef45adc1
+# ╠═95531bde-8386-4d51-8c83-ffb796a41e90
 # ╠═5882adec-7591-4d93-98e2-efb81496c54d
 # ╠═f7639401-1fc9-4cb1-824c-4335a4bb8b25
 # ╟─1e8aaba0-645e-48c0-b4e1-b9e8f4c81c86
+# ╠═d00e04d9-7a12-481b-b3b3-5c1f7e31a1a7
 # ╟─1cf184a4-ec99-4cd2-8559-5d52b41ec629
 # ╟─b461aadf-f88c-4195-8715-35e1e24a9bb4
+# ╟─0612c049-c6d1-4e6a-a44a-b2f93a39a2c6
 # ╟─de7ff589-99c0-4625-8a10-86aa702d2510
-# ╠═d00e04d9-7a12-481b-b3b3-5c1f7e31a1a7
 # ╟─84ce90fc-f8a9-47ac-8f3f-c83899027a4d
 # ╠═5e09f7eb-a4af-4d94-8684-96857e716747
 # ╠═d8d4c414-64a0-11f0-15a3-0d566872a687
