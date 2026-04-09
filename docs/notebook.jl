@@ -87,12 +87,6 @@ md"""
 This gives the following transformation parameters:
 """
 
-# ╔═╡ c84e1690-2176-427f-b8b2-eb5feacdcc2d
-p_diff(x, x0) = round(100 * (x - x0) / x0; digits = 3)
-
-# ╔═╡ f47dd317-6ac6-4f5f-95f8-eaca3d2820a6
-p_diff(x::AbstractVector, x0::AbstractVector) = round(100 * norm(x - x0) / norm(x0); digits = 3)
-
 # ╔═╡ 6e44a52d-cc2a-45eb-ade3-001488cd2f49
 function decompose_tfm(tfm)
 	M = tfm.linear
@@ -101,6 +95,12 @@ function decompose_tfm(tfm)
 	T = tfm.translation
 	return (; S, R, T)
 end
+
+# ╔═╡ c84e1690-2176-427f-b8b2-eb5feacdcc2d
+p_diff(x, x0) = round(100 * (x - x0) / x0; digits = 3)
+
+# ╔═╡ f47dd317-6ac6-4f5f-95f8-eaca3d2820a6
+p_diff(x::AbstractVector, x0::AbstractVector) = round(100 * norm(x - x0) / norm(x0); digits = 3)
 
 # ╔═╡ c5658a61-99e2-4008-a542-9e12bf70ee9b
 md"""
@@ -246,7 +246,7 @@ We next build our list of candidate correspondences in this invariant space via 
 md"""
 ### Step 4: Refine candidate list
 
-Next, we find the largest set of mutually consistent correspondences (inliers) via a RANSAC pass.
+Next, we find the largest set of mutually consistent correspondences (inliers) via a RANSAC pass with [JuliaAstro/ConsensusFitting.jl](https://github.com/ConsensusFitting.jl).
 """
 
 # ╔═╡ 1c6b9f26-a418-4e47-8f6a-50a78f627ba8
