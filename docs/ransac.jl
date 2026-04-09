@@ -46,8 +46,10 @@ isotropic Gaussian PSF (`fwhm = 5 px`).  Star brightnesses are drawn
 uniformly at random from the range [0.5, 1.0].
 """
 
-# ╔═╡ a0000000-0000-11f0-0000-000000000004
+# ╔═╡ c0ec4ce6-a31e-4fd6-a960-280325644254
 const MASTER_SIZE = (2000, 2000)
+
+# ╔═╡ 6edad1a0-1986-4730-80f3-b3e68b75a6bf
 const FWHM        = 5.0    # PSF full-width at half-maximum (pixels)
 
 # ╔═╡ a0000000-0000-11f0-0000-000000000005
@@ -179,14 +181,16 @@ md"""
 ### The two sub-images side by side
 """
 
+# ╔═╡ de3305b6-78e4-4473-b3a6-4d4961c99be0
+function hm_sub(img, title; colorbar_x = 1.0)
+	z = permutedims(Matrix(img))
+	heatmap(z = z; colorscale = :Cividis, showscale = true,
+		colorbar = attr(x = colorbar_x, thickness = 10, title = "Flux"),
+		name = title)
+end
+
 # ╔═╡ a0000000-0000-11f0-0000-000000000011
 let
-	function hm_sub(img, title; colorbar_x = 1.0)
-		z = permutedims(Float64.(parent(img)))
-		heatmap(z = z; colorscale = :Cividis, showscale = true,
-			colorbar = attr(x = colorbar_x, thickness = 10, title = "Flux"),
-			name = title)
-	end
 	fig = make_subplots(rows = 1, cols = 2;
 		column_titles = ["img_to (reference)", "img_from ($(θ_deg)° rotated)"],
 		shared_xaxes = true, shared_yaxes = true)
@@ -213,7 +217,7 @@ inlier threshold set to 5 pixels.
 """
 
 # ╔═╡ a0000000-0000-11f0-0000-000000000014
-img_aligned, params = align_frame(parent(img_to), parent(img_from);
+img_aligned, params = align_frame(parent(img_from), parent(img_to);
 	scale            = false,
 	min_fwhm         = (1.0, 1.0),
 	N_max            = 20,
@@ -231,27 +235,45 @@ md"""
 
 # ╔═╡ a0000000-0000-11f0-0000-000000000016
 let
-	@info "Recovered transform" params.tfm.linear params.tfm.translation
 	n_inliers = length(params.inlier_idxs)
 	n_total   = size(params.correspondences, 2)
-	md"""
+	
+	"""
 	**Linear (rotation) part:**
-	$(params.tfm.linear)
+	
+	```julia
+	$(repr("text/plain", params.tfm.linear))
+	```
 
 	**Translation (pixels, row-col convention):**
-	$(round.(params.tfm.translation; digits = 2))
+
+	```julia
+	$(repr("text/plain", round.(params.tfm.translation; digits = 2)))
+	```
 
 	**RANSAC inliers:** $(n_inliers) of $(n_total) candidate correspondences ($(round(100*n_inliers/n_total; digits=1)) %)
-	"""
+	""" |> Markdown.parse
 end
 
 # ╔═╡ a0000000-0000-11f0-0000-000000000017
-md"""
-**Expected** linear part: R(−$(θ_deg)°) =
-``\\begin{pmatrix} \\cos($(θ_deg)°) & \\sin($(θ_deg)°) \\\\ -\\sin($(θ_deg)°) & \\cos($(θ_deg)°) \\end{pmatrix}``
-which equals approximately
-$(round.([cos(θ) sin(θ); -sin(θ) cos(θ)]; digits = 3))
+let
+	A = round.([cos(θ) sin(θ); -sin(θ) cos(θ)]; digits = 3)
 """
+**Expected** linear part:
+
+```math
+R(−$(θ_deg)°) = \\begin{pmatrix} \\cos($(θ_deg)°) & \\sin($(θ_deg)°) \\\\ -\\sin($(θ_deg)°) & \\cos($(θ_deg)°) \\end{pmatrix}
+```
+	
+which equals approximately:
+
+```math
+\\begin{pmatrix}
+	$(A[1]) & $(A[3]) \\\\ $(A[2]) & $(A[4])
+\\end{pmatrix}
+```
+""" |> Markdown.parse
+end
 
 # ╔═╡ a0000000-0000-11f0-0000-000000000018
 md"""
@@ -261,6 +283,12 @@ Each coloured dot marks an inlier control point in `img_to` (left) and its
 counterpart in `img_from` (right).  Shared colours indicate matched pairs.
 """
 
+# ╔═╡ f4222420-e1b0-464d-ac2b-3a180619e0e5
+function hm_img(img, title)
+	z = permutedims(Float64.(img isa AstroImage ? parent(img) : img))
+	heatmap(z = z; colorscale = :Cividis, showscale = false, name = title)
+end
+
 # ╔═╡ a0000000-0000-11f0-0000-000000000019
 let
 	corr   = params.correspondences
@@ -269,32 +297,34 @@ let
 
 	colors = [string("hsl(", round(Int, 360 * i / n), ", 70%, 55%)") for i in 1:n]
 
-	function hm_img(img, title)
-		z = permutedims(Float64.(img isa AstroImage ? parent(img) : img))
-		heatmap(z = z; colorscale = :Cividis, showscale = false, name = title)
-	end
-
 	fig = make_subplots(rows = 1, cols = 2;
 		column_titles = ["img_to (inlier sources)", "img_from (inlier sources)"],
 		shared_xaxes = true, shared_yaxes = true)
-	add_trace!(fig, hm_img(img_to, "img_to"), row = 1, col = 1)
-	add_trace!(fig, hm_img(img_from, "img_from"), row = 1, col = 2)
+	
+	add_trace!(fig, hm_img(Matrix(img_to), "img_to"), row = 1, col = 1)
+	
+	add_trace!(fig, hm_img(Matrix(img_from), "img_from"), row = 1, col = 2)
 
+	yuh = 3
 	for (k, i) in enumerate(idxs)
 		# [xcenter=row, ycenter=col] → plot as [col, row]
-		r_from, c_from = corr[1, i], corr[2, i]
-		r_to,   c_to   = corr[3, i], corr[4, i]
+		r_from, c_from = corr[2, yuh, 1, i], corr[1, yuh, 1, i]
+		r_to,   c_to   = corr[2, yuh, 2, i], corr[1, yuh, 2, i]
+		
 		# Subtract master offset to convert to sub-image coords
-		r_to_sub   = r_to   - 744
-		c_to_sub   = c_to   - 744
+		r_to_sub   = r_to   #- 744
+		c_to_sub   = c_to   #- 744
+		
 		# img_from coords: already in sub-image space (0-based offset of 0)
 		r_from_sub = r_from
 		c_from_sub = c_from
+		
 		add_trace!(fig,
 			scatter(x = [c_to_sub], y = [r_to_sub]; mode = :markers,
 				marker = attr(size = 10, color = colors[k], symbol = "circle"),
 				showlegend = false),
 			row = 1, col = 1)
+		
 		add_trace!(fig,
 			scatter(x = [c_from_sub], y = [r_from_sub]; mode = :markers,
 				marker = attr(size = 10, color = colors[k], symbol = "circle-open"),
@@ -319,14 +349,6 @@ look nearly identical to `img_to` (right).
 
 # ╔═╡ a0000000-0000-11f0-0000-000000000021
 let
-	function hm_sub(img, title; colorbar_x = 1.0)
-		arr = Float64.(img isa AstroImage ? parent(img) : img)
-		arr_p = permutedims(arr)
-		heatmap(z = arr_p; colorscale = :Cividis, showscale = true,
-			colorbar = attr(x = colorbar_x, thickness = 10, title = "Flux"),
-			name = title)
-	end
-
 	fig = make_subplots(rows = 1, cols = 2;
 		column_titles = ["img_aligned (warped img_from)", "img_to (reference)"],
 		shared_xaxes = true, shared_yaxes = true)
@@ -360,7 +382,7 @@ begin
 	img_from_sim = warp(master, Translation(master_ctr) ∘ LinearMap(M_sim) ∘ Translation(-sub_ctr),
 		(1:512, 1:512))
 
-	img_aligned_sim, params_sim = align_frame(parent(img_to), img_from_sim;
+	img_aligned_sim, params_sim = align_frame(img_from_sim, parent(img_to);
 		scale            = true,
 		min_fwhm         = (1.0, 1.0),
 		N_max            = 20,
@@ -410,7 +432,8 @@ md"""
 # ╔═╡ Cell order:
 # ╟─a0000000-0000-11f0-0000-000000000002
 # ╟─a0000000-0000-11f0-0000-000000000003
-# ╠═a0000000-0000-11f0-0000-000000000004
+# ╠═c0ec4ce6-a31e-4fd6-a960-280325644254
+# ╠═6edad1a0-1986-4730-80f3-b3e68b75a6bf
 # ╠═a0000000-0000-11f0-0000-000000000005
 # ╟─a0000000-0000-11f0-0000-000000000006
 # ╠═a0000000-0000-11f0-0000-000000000007
@@ -418,13 +441,15 @@ md"""
 # ╠═a0000000-0000-11f0-0000-000000000009
 # ╟─a0000000-0000-11f0-0000-000000000010
 # ╠═a0000000-0000-11f0-0000-000000000011
+# ╠═de3305b6-78e4-4473-b3a6-4d4961c99be0
 # ╟─a0000000-0000-11f0-0000-000000000012
 # ╟─a0000000-0000-11f0-0000-000000000013
 # ╠═a0000000-0000-11f0-0000-000000000014
-# ╟─a0000000-0000-11f0-0000-000000000015
-# ╠═a0000000-0000-11f0-0000-000000000016
-# ╟─a0000000-0000-11f0-0000-000000000017
+# ╠═a0000000-0000-11f0-0000-000000000015
+# ╟─a0000000-0000-11f0-0000-000000000016
+# ╠═a0000000-0000-11f0-0000-000000000017
 # ╟─a0000000-0000-11f0-0000-000000000018
+# ╠═f4222420-e1b0-464d-ac2b-3a180619e0e5
 # ╠═a0000000-0000-11f0-0000-000000000019
 # ╟─a0000000-0000-11f0-0000-000000000020
 # ╠═a0000000-0000-11f0-0000-000000000021
