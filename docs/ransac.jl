@@ -22,6 +22,7 @@ begin
 	using PlutoUI
 	using Random
 	using StaticArrays
+	using Latexify
 
 	AstroImages.set_cmap!(:cividis)
 
@@ -114,6 +115,9 @@ begin
 
 	md"Sub-images extracted (both 512 × 512)"
 end
+
+# ╔═╡ e47bb596-8960-469d-b66b-8dd0af5fb31e
+tfm_to_back.translation - tfm_from_back.translation
 
 # ╔═╡ a0000000-0000-11f0-0000-000000000008
 md"""
@@ -223,6 +227,9 @@ img_aligned, params = align_frame(parent(img_from), parent(img_to);
 	N_max            = 20,
 	ransac_threshold = 5.0,
 );
+
+# ╔═╡ fe1bf792-1b39-4896-9db0-1c68576953e4
+params.tfm.translation
 
 # ╔═╡ a0000000-0000-11f0-0000-000000000015
 md"""
@@ -352,11 +359,17 @@ let
 	fig = make_subplots(rows = 1, cols = 2;
 		column_titles = ["img_aligned (warped img_from)", "img_to (reference)"],
 		shared_xaxes = true, shared_yaxes = true)
+	
 	add_trace!(fig, hm_sub(img_aligned, "aligned"; colorbar_x = 0.45), row = 1, col = 1)
+	
 	add_trace!(fig, hm_sub(img_to,      "img_to";  colorbar_x = 1.0),  row = 1, col = 2)
+	
 	update_xaxes!(fig, scaleanchor = :y, title = "Column")
+	
 	update_yaxes!(fig, scaleanchor = :x, autorange = "reversed", title = "Row")
+	
 	relayout!(fig; template = "plotly_white", margin = attr(t = 30))
+	
 	fig
 end
 
@@ -429,6 +442,9 @@ md"""
 # 🔧 Notebook setup
 """
 
+# ╔═╡ 539dcd07-2466-4326-bafd-91c40798fd81
+PlutoUI.TableOfContents()
+
 # ╔═╡ Cell order:
 # ╟─a0000000-0000-11f0-0000-000000000002
 # ╟─a0000000-0000-11f0-0000-000000000003
@@ -437,6 +453,8 @@ md"""
 # ╠═a0000000-0000-11f0-0000-000000000005
 # ╟─a0000000-0000-11f0-0000-000000000006
 # ╠═a0000000-0000-11f0-0000-000000000007
+# ╠═e47bb596-8960-469d-b66b-8dd0af5fb31e
+# ╠═fe1bf792-1b39-4896-9db0-1c68576953e4
 # ╟─a0000000-0000-11f0-0000-000000000008
 # ╠═a0000000-0000-11f0-0000-000000000009
 # ╟─a0000000-0000-11f0-0000-000000000010
@@ -457,4 +475,5 @@ md"""
 # ╠═a0000000-0000-11f0-0000-000000000023
 # ╟─a0000000-0000-11f0-0000-000000000024
 # ╟─a0000000-0000-11f0-0000-000000000025
+# ╠═539dcd07-2466-4326-bafd-91c40798fd81
 # ╠═a0000000-0000-11f0-0000-000000000001

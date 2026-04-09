@@ -25,18 +25,20 @@ begin
 	
 	using Revise
 	
-	using Astroalign, AstroImages, PlutoPlotly, PlutoUI, PSFModels, Rotations, Photometry, ImageTransformations, CoordinateTransformations
+	using Astroalign, AstroImages, PlutoPlotly, PlutoUI, PSFModels, Rotations, Photometry, ImageTransformations, CoordinateTransformations, Latexify
+
+	using ConsensusFitting: ransac
 	
 	AstroImages.set_cmap!(:cividis)
 
 	Pkg.status()
 end
 
-# ╔═╡ 400411fa-ec02-4ae1-b5ff-7776fbc8dc70
-using ConsensusFitting: ransac
-
 # ╔═╡ d97c367c-4db1-4dd0-8066-3f12e08d2f01
 using Random
+
+# ╔═╡ dec95f6d-bdfd-4407-b6dd-50e33e1f919a
+using LinearAlgebra
 
 # ╔═╡ 9e130a37-1073-4d0f-860a-0ec8d164dde1
 md"""
@@ -67,9 +69,18 @@ Here is a brief usage example aligning `img_from` onto `img_to` with the exporte
 # ╔═╡ c5bfce23-d050-42e3-8af2-f1181adaaa2d
 @bind seed PlutoUI.Radio([i => "Star field $(i)" for i in 1:5]; default = 1)
 
-# ╔═╡ b51e47f6-af8e-478a-a716-af74e33c9e99
+# ╔═╡ 7c1942c2-f61c-4c17-a0a5-0701c19d3d4f
 md"""
-In this particular case, `img_from` is rotated clockwise, and shifted vertically upwards and horizontally to the left relative to `img_to` in the above plot. Let's fix it.
+That's it!
+
+The rest of this notebook will walk through how this works behind the scenes.
+"""
+
+# ╔═╡ fde0d2e4-e8ce-4861-8d53-43d58c9f8fe1
+md"""
+### Recovered transformation
+
+As a quick check, the underlying transformation that we want to recover is the following:
 """
 
 # ╔═╡ a1cb22fc-e956-4cf7-aafc-0168da23e556
@@ -81,7 +92,7 @@ For even more control, each step of the alignment process has an associated API 
 md"""
 ## Overview
 
-This is the secret sauce: _Beroiz, Cabral, & Sanchez_ use the fact that triangles can be uniquely characterized to match sets of three stars (asterisms) between images. This point-to-point correspondence then gives us everything we need to compute the affine transformation between them.
+[_Beroiz, Cabral, & Sanchez_](https://ui.adsabs.harvard.edu/abs/2020A%26C....3200384B/abstract) use the fact that triangles can be uniquely characterized to match sets of three stars (asterisms) between images. This point-to-point correspondence then gives us everything we need to compute the affine transformation between them.
 
 For this implementation, they use the invariant ``\mathscr M`` (the pair of two independent ratios of a triangle's side lengths, ``L_i``) to define this unique characterization:
 
@@ -203,10 +214,12 @@ md"""
 
 # ╔═╡ 1c6b9f26-a418-4e47-8f6a-50a78f627ba8
 function yea(correspondences; scale = false, ransac_threshold = 3.0)		
-	fwd_tfm, inlier_idxs = Astroalign.ransac(
-		correspondences, Astroalign._fit_minimal_rigid_triangle, Astroalign._triangle_distfn, 1, ransac_threshold;
-	)
-	
+	fittingfn = scale ? Astroalign._fit_minimal_similarity_triangle : Astroalign._fit_minimal_rigid_triangle
+    
+	fwd_tfm, inlier_idxs = ransac(
+        correspondences, fittingfn, Astroalign._triangle_distfn, 1, ransac_threshold;
+    )
+
 	for _ in 1:3
 		isempty(inlier_idxs) && break
 		pts_from = reshape(correspondences[:, :, 1, inlier_idxs], 2, :)  # 2 × 3·N_inliers
@@ -284,20 +297,20 @@ end;
 # And "truth" fwhms for comparison
 sort(fwhms; by = x -> hypot(x...), rev = true)
 
-# ╔═╡ d289ce16-d5c8-4902-a608-8f76ce22ddf7
-trans, rot = Translation(10, 7), LinearMap(RotMatrix2(π/8))
-
 # ╔═╡ 39b81373-8029-4e9c-9ea4-732722cf645e
-tfm_0 = trans ∘ rot
+tfm_fwd_0 = Translation(10, 7) ∘ LinearMap(RotMatrix2(π/8)) ∘ LinearMap(0.8 * I)
 
-# ╔═╡ d0d47bb3-3cf6-42b6-b5d3-58c2bc7e6a19
-θ = acosd(first(tfm_0.linear))
+# ╔═╡ f553bc81-dcc4-4e04-8173-beae8fe96249
+let
+	u, θ = tfm_fwd_0.translation, 2 #acosd(first(tfm_fwd_0.linear))
 
-# ╔═╡ 27d63128-3be9-42c9-92a8-439b246e6354
-tfm_0.linear
+md"""
+In this particular case, `img_from` is i) rotated clockwise by $(round(θ; digits = 1))°, and ii) translated to the left $(first(u)) pixels and down $(last(u)) pixels relative to `img_to` in the above plot. Let's fix it.
+"""
+end
 
-# ╔═╡ 14c86ec3-924e-4dc8-9bad-f96f149a7aa3
-tfm_0.translation
+# ╔═╡ 13f6566d-a015-4e64-8ef5-9c7650903349
+inv(tfm_fwd_0)
 
 # ╔═╡ f7639401-1fc9-4cb1-824c-4335a4bb8b25
 # Modified from
@@ -348,20 +361,50 @@ C_to, ℳ_to = triangle_invariants(phot_to)
 
 # ╔═╡ 5882adec-7591-4d93-98e2-efb81496c54d
 img_from = let
-	tfm = Translation(10, 7) ∘ LinearMap(RotMatrix2(π/8))
-	warp(img_to, tfm_0, axes(img_to);
+	warp(img_to, tfm_fwd_0, axes(img_to);
 		 fillvalue = ImageTransformations.Periodic(),
 	)
 end |> AstroImage;
 
 # ╔═╡ 445a0d35-2b49-42cc-8529-176778b0e090
 arr_from_aligned, params_aligned = align_frame(img_from, img_to;
+	scale = true,
 	# box_size,
 	# ap_radius,
 	# min_fwhm = box_size .÷ 5,
 	# nsigma = 1,
 	# f = Astroalign.PSF(),
 );
+
+# ╔═╡ 30c3ecfc-f676-4bad-8a04-cc54fa3cf0c2
+tfm_aligned = inv(params_aligned.tfm)
+
+# ╔═╡ 6e44a52d-cc2a-45eb-ade3-001488cd2f49
+function decompose_tfm(tfm)
+	M = tfm_aligned.linear
+	S = sqrt(M'M)
+	R = M * inv(S)
+	T = tfm_aligned.translation
+	return S, R, T
+end
+
+# ╔═╡ 94974b07-81b5-46dd-8643-6b70449ca912
+S, R, T = decompose_tfm(tfm_aligned)
+
+# ╔═╡ 7fdef66b-af57-4025-bfdd-e08b4d01a73a
+θ = atand(R[2, 1], R[1, 1])
+
+# ╔═╡ c47959a8-2468-4e5e-9db9-8d6427b8675a
+"""
+```math
+R(−$(θ)°) = \\begin{pmatrix}
+	 \\cos $(θ)° & \\sin $(θ)° \\\\
+	-\\sin $(θ)° & \\cos $(θ)°
+\\end{pmatrix} =
+
+$(latexify(tfm_fwd_0.linear; env = :raw, arraystyle = :pmatrix, fmt = "%.3f"))
+```
+""" |> Markdown.parse
 
 # ╔═╡ ad82de06-50f8-4e30-80b9-e4821e845162
 (; C_from, ℳ_from) = params_aligned; C_from, ℳ_from
@@ -389,7 +432,7 @@ end
 correspondences = Astroalign._build_correspondences(C_from, ℳ_from, C_to, ℳ_to)
 
 # ╔═╡ 5041a969-a40e-49ee-8467-e1a38f81b7a6
-point_map, tfm = yea(correspondences)
+point_map, tfm = yea(correspondences; scale = true)
 
 # ╔═╡ bd2d9faf-7e0c-4a46-91e9-b3984dd3090e
 aps_sol_from = map(point_map) do sol
@@ -538,12 +581,16 @@ md"""
 # ╟─40c14093-3806-401f-aedf-f6435f785eb4
 # ╟─c5bfce23-d050-42e3-8af2-f1181adaaa2d
 # ╟─f128f050-b716-4a79-8bb6-640708d1bc88
-# ╟─b51e47f6-af8e-478a-a716-af74e33c9e99
-# ╠═d0d47bb3-3cf6-42b6-b5d3-58c2bc7e6a19
-# ╠═27d63128-3be9-42c9-92a8-439b246e6354
-# ╠═14c86ec3-924e-4dc8-9bad-f96f149a7aa3
+# ╟─f553bc81-dcc4-4e04-8173-beae8fe96249
 # ╟─8769216b-00d4-44bd-97fd-7aa89cf19c23
 # ╠═445a0d35-2b49-42cc-8529-176778b0e090
+# ╟─7c1942c2-f61c-4c17-a0a5-0701c19d3d4f
+# ╠═fde0d2e4-e8ce-4861-8d53-43d58c9f8fe1
+# ╠═c47959a8-2468-4e5e-9db9-8d6427b8675a
+# ╠═30c3ecfc-f676-4bad-8a04-cc54fa3cf0c2
+# ╠═94974b07-81b5-46dd-8643-6b70449ca912
+# ╠═7fdef66b-af57-4025-bfdd-e08b4d01a73a
+# ╟─6e44a52d-cc2a-45eb-ade3-001488cd2f49
 # ╟─a1cb22fc-e956-4cf7-aafc-0168da23e556
 # ╟─c5658a61-99e2-4008-a542-9e12bf70ee9b
 # ╟─a2ed7b77-1277-41a3-8c29-a9814b124d09
@@ -576,10 +623,9 @@ md"""
 # ╠═5dd82850-91d7-4b57-81df-e32dcc28eab9
 # ╠═1c6b9f26-a418-4e47-8f6a-50a78f627ba8
 # ╠═5041a969-a40e-49ee-8467-e1a38f81b7a6
-# ╠═400411fa-ec02-4ae1-b5ff-7776fbc8dc70
 # ╠═bd2d9faf-7e0c-4a46-91e9-b3984dd3090e
 # ╠═7f0b20db-e369-4e6a-aa5e-7df949791915
-# ╟─0612c049-c6d1-4e6a-a44a-b2f93a39a2c6
+# ╠═0612c049-c6d1-4e6a-a44a-b2f93a39a2c6
 # ╠═5a7f9cd0-15cf-44be-af6d-9bc16045ff85
 # ╠═05537e5b-347a-4198-80e9-7eeed85b08ca
 # ╟─1150fd19-ece7-4fd0-91db-a4df982d1e8e
@@ -595,8 +641,9 @@ md"""
 # ╠═d97c367c-4db1-4dd0-8066-3f12e08d2f01
 # ╠═0ae46a86-dd86-4092-9d34-05f643ec08af
 # ╠═95531bde-8386-4d51-8c83-ffb796a41e90
-# ╠═d289ce16-d5c8-4902-a608-8f76ce22ddf7
+# ╠═dec95f6d-bdfd-4407-b6dd-50e33e1f919a
 # ╠═39b81373-8029-4e9c-9ea4-732722cf645e
+# ╠═13f6566d-a015-4e64-8ef5-9c7650903349
 # ╠═5882adec-7591-4d93-98e2-efb81496c54d
 # ╠═f7639401-1fc9-4cb1-824c-4335a4bb8b25
 # ╟─1e8aaba0-645e-48c0-b4e1-b9e8f4c81c86
