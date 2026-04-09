@@ -24,11 +24,11 @@ This is achieved via the following algorithm:
    the invariant ``\\mathscr M`` space defined by [Beroiz et al. (2020)](https://ui.adsabs.harvard.edu/abs/2020A%26C....3200384B/abstract).
    Vertices are assigned via a canonical ordering that is invariant under
    rotation, so the positional correspondence between matched triangles is
-   geometrically consistent.  The axes are `[coord, vertex, frame, match]`
+   geometrically consistent. The axes are `[coord, vertex, frame, match]`
    where `coord ∈ {x, y}`, `vertex ∈ {1,2,3}`, and `frame ∈ {from, to}`.
 4. Run RANSAC ([Fischler & Bolles, 1981](https://dl.acm.org/doi/10.1145/358669.358692))
    on the triangle matches to robustly identify the largest set of mutually
-   consistent correspondences ("inliers").  Each hypothesis is a Kabsch fit to
+   consistent correspondences ("inliers"). Each hypothesis is a Kabsch fit to
    one randomly sampled triangle match (3 over-determined constraints), which
    prevents cross-triangle vertex mixing.
 5. Refine the transformation via the Kabsch / Umeyama least-squares algorithm
@@ -69,7 +69,7 @@ function align_frame(img_from, img_to;
     # Step 2: Calculate invariants
     C_from, ℳ_from = triangle_invariants(phot_from)
     C_to, ℳ_to = triangle_invariants(phot_to)
-    
+
     # Step 3: Build candidate correspondence pool via nearest neighbors triangle matching
     correspondences = _build_correspondences(C_from, ℳ_from, C_to, ℳ_to)
 
@@ -84,19 +84,19 @@ function align_frame(img_from, img_to;
     )
 
     # Step 5: Finalize the result by iteratively refining the transform.
-    # Each pass: fit a new forward (from→to) transform on the current inlier set,
+    # Each pass: fit a new forward (from => to) transform on the current inlier set,
     # then re-score all correspondences to update inlier_idxs. Using the full
     # array (not the previous inlier subset) lets previously-missed inliers be
     # recovered and incorrectly accepted ones drop out.
-    # Note that _triangle_distfn expects a from→to transform.
+    # Note that _triangle_distfn expects a from =>to transform.
     for _ in 1:final_iters
         isempty(inlier_idxs) && break
         pts_from = reshape(correspondences[:, :, 1, inlier_idxs], 2, :)  # 2 × 3·N_inliers
-        pts_to   = reshape(correspondences[:, :, 2, inlier_idxs], 2, :)  # 2 × 3·N_inliers
-        new_fwd  = kabsch(pts_from => pts_to; scale)   # from→to for scoring
+        pts_to = reshape(correspondences[:, :, 2, inlier_idxs], 2, :)  # 2 × 3·N_inliers
+        new_fwd = kabsch(pts_from => pts_to; scale)   # from => to for scoring
         new_idxs, _ = _triangle_distfn([new_fwd], correspondences, ransac_threshold)
         isempty(new_idxs) && break
-        fwd_tfm     = new_fwd
+        fwd_tfm = new_fwd
         inlier_idxs = new_idxs
     end
 

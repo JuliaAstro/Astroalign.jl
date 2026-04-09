@@ -125,20 +125,40 @@ For this implementation, they use the invariant ``\mathscr M`` (the pair of two 
 
 Astroalign.jl accomplishes this in the following steps:
 
-1. Identify up to ``N`` control points in each image (could be less depending on viewing conditions).
-1. Calculate the invariant ``\mathscr M`` for all ``N\choose{3}`` possible combinations of triangles made up of these control points.
-1. Calculate the pairwise distances between them and choose the closest pair. This will be our point-to-point correspondence.
-1. Return the corresponding affine transformation matrix resulting from this matched pair.
+1. Identify the `N_max` brightest point-like sources in `img_from` and `img_to`.
+2. Calculate all triangular asterisms formed from these sources.
+3. Build a `2 × 3 × 2 × N` array of candidate triangle-level correspondences
+   by matching each from-triangle to its nearest to-triangle in
+   the invariant ``\\mathscr M`` space defined by [Beroiz et al. (2020)](https://ui.adsabs.harvard.edu/abs/2020A%26C....3200384B/abstract).
+   Vertices are assigned via a canonical ordering that is invariant under
+   rotation, so the positional correspondence between matched triangles is
+   geometrically consistent.  The axes are `[coord, vertex, frame, match]`
+   where `coord ∈ {x, y}`, `vertex ∈ {1,2,3}`, and `frame ∈ {from, to}`.
+4. Run RANSAC ([Fischler & Bolles, 1981](https://dl.acm.org/doi/10.1145/358669.358692))
+   on the triangle matches to robustly identify the largest set of mutually
+   consistent correspondences ("inliers").  Each hypothesis is a Kabsch fit to
+   one randomly sampled triangle match (3 over-determined constraints), which
+   prevents cross-triangle vertex mixing.
+5. Refine the transformation via the Kabsch / Umeyama least-squares algorithm
+   applied to all vertex pairs from all inlier triangle matches.
+6. Finally, warp `img_from` to the coordinates of `img_to`.
+"""
+
+# ╔═╡ c0b252bb-e621-45b6-987f-85f7a0211271
+md"""
+## Details
 """
 
 # ╔═╡ a2ed7b77-1277-41a3-8c29-a9814b124d09
 md"""
-## Step 1: Control points
+### Step 1: Identify control points
+
+This step is done solely on the Photometry.jl side, which Astroalign.jl calls with some reasonable defaults.
 """
 
 # ╔═╡ 2bc269e1-dbe3-4c68-9a30-8c6054bc3a82
 md"""
-### Detect
+#### Detect
 
 `astroalign.py` uses [`sep`](https://github.com/quatrope/astroalign/blob/d7463b4ca48fc35f3d86a72343015491cdf20d6a/astroalign.py#L537) under the hood for its source extraction, so we'll use a combination of [`Photometry.extract_sources`](https://juliaastro.org/Photometry/stable/detection/#Photometry.Detection.extract_sources) to pull out the regions around the brightest pixels, and [`PSFModels.fit`](https://juliaastro.org/PSFModels/stable/api/#PSFModels.fit) to just pick out the ones that look like stars (vs. hot pixels, artifacts, etc.).
 
@@ -148,7 +168,7 @@ md"""
 
 # ╔═╡ fe518d92-fbfd-4d6f-ba71-0b7b23a73fd7
 md"""
-### Source extraction
+#### Source extraction
 
 Starting with `Astroalign.get_sources`, we identify candidate sources (`sources_to`) in the image that we would like to align to (`img_to`):
 """
@@ -160,7 +180,7 @@ Since these are just locations of the brightest points in our image, some could 
 
 # ╔═╡ b0ad71b1-3a3c-481b-a08e-2ee558e8e1c5
 md"""
-### Source characterization
+#### Source characterization
 
 [`Photometry.photometry`](https://juliaastro.org/Photometry/stable/apertures/#Photometry.Aperture.photometry) automatically computes aperture sums and returns them in a nice table for us. We also pass a function, `Astroalign.PSF`, to compute some PSF statistics for each source and stores them in the table as well.
 
@@ -223,33 +243,50 @@ Note that the number of combinations of triangles in each frame can differ if th
 
 # ╔═╡ dffa0f3c-100f-4916-96c7-90274c0df5f2
 md"""
-### Step 3: Build correspondences
+### Step 3: Build candidates
 """
 
 # ╔═╡ 5dd82850-91d7-4b57-81df-e32dcc28eab9
 md"""
-### Step 4
+### Step 4: Refine candidate list
+
+Via RANSAC method.
 """
 
 # ╔═╡ 1c6b9f26-a418-4e47-8f6a-50a78f627ba8
-function yea(correspondences; scale = false, ransac_threshold = 3.0)		
+function step4(correspondences; scale = false, ransac_threshold = 3.0)		
 	fittingfn = scale ? Astroalign._fit_minimal_similarity_triangle : Astroalign._fit_minimal_rigid_triangle
     
 	fwd_tfm, inlier_idxs = ransac(
         correspondences, fittingfn, Astroalign._triangle_distfn, 1, ransac_threshold;
     )
+end
 
+# ╔═╡ 1150fd19-ece7-4fd0-91db-a4df982d1e8e
+md"""
+### Step 5. Refine transformation
+"""
+
+# ╔═╡ 614bc7c4-6ba6-448b-9e82-aad968133622
+function step_5(correspondences, fwd_tfm_initial, inlier_idxs_initial;
+	scale = false,
+	ransac_threshold = 3.0,
+)
+	fwd_tfm = fwd_tfm_initial
+	inlier_idxs = inlier_idxs_initial
 	for _ in 1:3
 		isempty(inlier_idxs) && break
-		pts_from = reshape(correspondences[:, :, 1, inlier_idxs], 2, :)  # 2 × 3·N_inliers
-		pts_to   = reshape(correspondences[:, :, 2, inlier_idxs], 2, :)  # 2 × 3·N_inliers
-		new_fwd  = kabsch(pts_from => pts_to; scale)   # from→to for scoring
+		# 2 × 3·N_inliers
+		pts_from = reshape(correspondences[:, :, 1, inlier_idxs], 2, :)
+		pts_to = reshape(correspondences[:, :, 2, inlier_idxs], 2, :)
+		# 2 × 3·N_inliers
+		new_fwd = kabsch(pts_from => pts_to; scale)   # from => to for scoring
 		new_idxs, _ = Astroalign._triangle_distfn([new_fwd], correspondences, ransac_threshold)
 		isempty(new_idxs) && break
-		fwd_tfm     = new_fwd
+		fwd_tfm = new_fwd
 		inlier_idxs = new_idxs
 	end
-	
+		
 	# point_map: from-vertex => to-vertex for each vertex of each inlier match
 	point_map = mapreduce(vcat, inlier_idxs) do i
 		[correspondences[:, v, 1, i] => correspondences[:, v, 2, i] for v in 1:3]
@@ -258,25 +295,14 @@ function yea(correspondences; scale = false, ransac_threshold = 3.0)
 	return unique(point_map), inv(fwd_tfm)
 end
 
-# ╔═╡ 1150fd19-ece7-4fd0-91db-a4df982d1e8e
-md"""
-### Step 4. Compute transform
-
-Now that we have our point-to-point correspondence, we can compute our affine transformation needed to produce our aligned image.
-"""
-
-# ╔═╡ 6646cf68-daf0-4a83-b3a8-43415ee8f97f
-# point_map = map(sol_from, sol_to) do source_from, source_to
-# 	[source_from.xcenter, source_from.ycenter] => [source_to.xcenter, source_to.ycenter]
-# end
-
-# ╔═╡ 9db16b0e-1e1e-40a5-b7f4-56f819f4e0b1
-# # Doing to => from instead of from => to to avoid needing inv(tfm)
-# tfm = kabsch(last.(point_map) => first.(point_map); scale = false)
-
 # ╔═╡ 3779aed1-a02d-4370-8d56-37a2a5d374bf
 md"""
 We can now hand off this transformation to an image transformation library like `JuliaAstroImages.ImageTransformations` to view our final results. This should match our results returned by `Astroalign.align_frame` in the [Usage](#Usage) example.
+"""
+
+# ╔═╡ 463f4963-4b5c-40f2-baaa-6f1180988990
+md"""
+### Step 6: Apply transformation
 """
 
 # ╔═╡ dd9296e8-0112-41e1-9ccc-4a3e813e2836
@@ -388,12 +414,16 @@ end |> AstroImage;
 
 # ╔═╡ 445a0d35-2b49-42cc-8529-176778b0e090
 arr_from_aligned, params_aligned = align_frame(img_from, img_to;
-	scale = true,
-	# box_size,
-	# ap_radius,
+	# box_size = (3, 3),
+	# ap_radius = 20,
+	# f = Astroalign.PSF(),
 	# min_fwhm = box_size .÷ 5,
 	# nsigma = 1,
-	# f = Astroalign.PSF(),
+	# N_max,
+	scale = true,
+	# ransac_threshold = 3.0,
+	# final_iters = 3,
+	# use_fitpos = true,
 );
 
 # ╔═╡ 30c3ecfc-f676-4bad-8a04-cc54fa3cf0c2
@@ -435,8 +465,17 @@ end
 # ╔═╡ 2c3e0706-556a-4fdb-bbc5-85b5f90b3649
 correspondences = Astroalign._build_correspondences(C_from, ℳ_from, C_to, ℳ_to)
 
+# ╔═╡ 12d45273-f8c0-4b59-bcd6-296b4ebbb978
+fwd_tfm_initial, inlier_idxs_initial = step4(correspondences;
+	scale = true,
+	ransac_threshold = 3.0,
+)
+
 # ╔═╡ 5041a969-a40e-49ee-8467-e1a38f81b7a6
-point_map, tfm = yea(correspondences; scale = true)
+point_map, tfm = step_5(correspondences, fwd_tfm_initial, inlier_idxs_initial;
+	scale = true,
+	ransac_threshold = 3.0,
+)
 
 # ╔═╡ bd2d9faf-7e0c-4a46-91e9-b3984dd3090e
 aps_sol_from = map(point_map) do sol
@@ -612,6 +651,7 @@ TableOfContents(; depth = 4)
 # ╟─6e44a52d-cc2a-45eb-ade3-001488cd2f49
 # ╟─a1cb22fc-e956-4cf7-aafc-0168da23e556
 # ╟─c5658a61-99e2-4008-a542-9e12bf70ee9b
+# ╟─c0b252bb-e621-45b6-987f-85f7a0211271
 # ╟─a2ed7b77-1277-41a3-8c29-a9814b124d09
 # ╟─2bc269e1-dbe3-4c68-9a30-8c6054bc3a82
 # ╟─fe518d92-fbfd-4d6f-ba71-0b7b23a73fd7
@@ -631,7 +671,7 @@ TableOfContents(; depth = 4)
 # ╟─35befaff-e36c-4741-b28f-3589afe596cd
 # ╟─c73692f2-178d-4b35-badc-e9e682551989
 # ╟─0d4ce3b5-665a-4cc8-8884-90600e99f6ba
-# ╠═255cb3ee-2ac4-4b20-8d4f-785ca9400668
+# ╟─255cb3ee-2ac4-4b20-8d4f-785ca9400668
 # ╟─cdba7937-eea8-409a-b9e3-714e4516486c
 # ╠═c46335bc-ae9a-4257-8a85-b4ccb94d1744
 # ╟─d1d3f995-b901-4aab-86cd-e2d6f2393190
@@ -639,17 +679,18 @@ TableOfContents(; depth = 4)
 # ╟─23a1364a-4ba0-42af-93bf-b6f900b9a13d
 # ╟─dffa0f3c-100f-4916-96c7-90274c0df5f2
 # ╠═2c3e0706-556a-4fdb-bbc5-85b5f90b3649
-# ╠═5dd82850-91d7-4b57-81df-e32dcc28eab9
+# ╟─5dd82850-91d7-4b57-81df-e32dcc28eab9
 # ╠═1c6b9f26-a418-4e47-8f6a-50a78f627ba8
+# ╠═12d45273-f8c0-4b59-bcd6-296b4ebbb978
+# ╟─1150fd19-ece7-4fd0-91db-a4df982d1e8e
+# ╠═614bc7c4-6ba6-448b-9e82-aad968133622
 # ╠═5041a969-a40e-49ee-8467-e1a38f81b7a6
 # ╠═bd2d9faf-7e0c-4a46-91e9-b3984dd3090e
 # ╠═7f0b20db-e369-4e6a-aa5e-7df949791915
 # ╠═0612c049-c6d1-4e6a-a44a-b2f93a39a2c6
 # ╠═41136c70-f0ed-435b-b449-5d71e04e9c35
-# ╟─1150fd19-ece7-4fd0-91db-a4df982d1e8e
-# ╠═6646cf68-daf0-4a83-b3a8-43415ee8f97f
-# ╠═9db16b0e-1e1e-40a5-b7f4-56f819f4e0b1
 # ╟─3779aed1-a02d-4370-8d56-37a2a5d374bf
+# ╟─463f4963-4b5c-40f2-baaa-6f1180988990
 # ╠═7990c8be-9425-47d0-a913-9e2bb4fbefd1
 # ╠═066210ea-b5b3-4f73-8fc1-503625fc32ce
 # ╟─dd9296e8-0112-41e1-9ccc-4a3e813e2836
