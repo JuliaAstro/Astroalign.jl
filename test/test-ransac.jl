@@ -126,6 +126,20 @@ end
         ransac_threshold = 2.0,
     )
 
+    # Test uniqueness of correspondences
+    for i in axes(params.correspondences, 4)
+        for j in i+1:size(params.correspondences, 4)
+            @test params.correspondences[:, :, :, i] != params.correspondences[:, :, :, j]
+        end
+    end
+
+    # Test uniqueness of point_map
+    for i in axes(params.point_map, 1)
+        for j in i+1:length(params.point_map)
+            @test params.point_map[i] != params.point_map[j]
+        end
+    end
+
     # Recovered backward transform (img_to → img_from) should match T_fwd
     @test params.tfm.linear ≈ R_fwd  atol=0.01
     @test params.tfm.translation ≈ t_fwd  atol=1.0

@@ -103,7 +103,7 @@ function align_frame(img_from, img_to;
     # point_map: from-vertex => to-vertex for each vertex of each inlier match
     point_map = mapreduce(vcat, inlier_idxs) do i
         [correspondences[:, v, 1, i] => correspondences[:, v, 2, i] for v in 1:3]
-    end
+    end |> unique
 
     # Step 6: Apply the transform (from => to)
     tfm = inv(fwd_tfm)
