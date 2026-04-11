@@ -79,7 +79,7 @@ function align_frame(img_from, img_to;
 
     # Step 4: RANSAC on triangle matches to find the largest set of mutually consistent correspondences (inliers)
     fittingfn = scale ? _fit_minimal_similarity_triangle : _fit_minimal_rigid_triangle
-    fwd_tfm, inlier_idxs = ransac(
+    tfm, inlier_idxs = ransac(
         correspondences, fittingfn, _triangle_distfn, 1, ransac_threshold;
     )
 
@@ -96,7 +96,7 @@ function align_frame(img_from, img_to;
         new_fwd = kabsch(pts_from => pts_to; scale)   # from => to for scoring
         new_idxs, _ = _triangle_distfn([new_fwd], correspondences, ransac_threshold)
         isempty(new_idxs) && break
-        fwd_tfm = new_fwd
+        tfm = new_fwd
         inlier_idxs = new_idxs
     end
 
@@ -106,10 +106,10 @@ function align_frame(img_from, img_to;
     end |> unique
 
     # Step 6: Apply the transform (from => to)
-    tfm = inv(fwd_tfm)
+    warp_img = warp(img_from, inv(tfm), axes(img_to))
 
     return (
-        warp(img_from, tfm, axes(img_to)),
+        warp_img,
         (;
             point_map,
             tfm,

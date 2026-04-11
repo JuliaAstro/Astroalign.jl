@@ -42,7 +42,7 @@ end
         [9.0, 6.0] => [6.0, 6.0]
     ]
     @test params.tfm.linear ≈ [1 0; 0 1]
-    @test params.tfm.translation ≈ [3.0, 0.0]
+    @test params.tfm.translation ≈ [-3.0, 0.0]
 end
 
 @testset "_photometry" begin

@@ -102,17 +102,17 @@ end
 
     nstars = 20
     # Stars randomly inside [100, 400] × [100, 400] in (row, col)
-    stars_to_rc = [(rand(rng) * 300 + 100, rand(rng) * 300 + 100, rand(rng) * 0.5 + 0.5)
+    stars_from_rc = [(rand(rng) * 300 + 100, rand(rng) * 300 + 100, rand(rng) * 0.5 + 0.5)
                    for _ in 1:nstars]
 
     # Forward-transform star positions for img_from
-    stars_from_rc = map(stars_to_rc) do (r, c, amp)
+    stars_to_rc = map(stars_from_rc) do (r, c, amp)
         pf = T_fwd([r, c])
         (pf[1], pf[2], amp)
     end
 
     # All from-stars stay within image bounds (validated by the transform geometry)
-    @test all(stars_from_rc) do (r, c, _)
+    @test all(stars_to_rc) do (r, c, _)
         1 ≤ round(Int, r) ≤ 500 && 1 ≤ round(Int, c) ≤ 500
     end
 
@@ -140,7 +140,7 @@ end
         end
     end
 
-    # Recovered backward transform (img_to → img_from) should match T_fwd
+    # Recovered forward transform (img_from → img_to) should match T_fwd
     @test params.tfm.linear ≈ R_fwd  atol=0.01
     @test params.tfm.translation ≈ t_fwd  atol=1.0
 
@@ -179,14 +179,14 @@ end
     T_fwd     = AffineMap(M_fwd, t_fwd)
 
     nstars = 20
-    stars_to_rc = [(rand(rng) * 200 + 150, rand(rng) * 200 + 150, rand(rng) * 0.5 + 0.5)
+    stars_from_rc = [(rand(rng) * 200 + 150, rand(rng) * 200 + 150, rand(rng) * 0.5 + 0.5)
                    for _ in 1:nstars]
-    stars_from_rc = map(stars_to_rc) do (r, c, amp)
+    stars_to_rc = map(stars_from_rc) do (r, c, amp)
         pf = T_fwd([r, c])
         (pf[1], pf[2], amp)
     end
 
-    @test all(stars_from_rc) do (r, c, _)
+    @test all(stars_to_rc) do (r, c, _)
         1 ≤ round(Int, r) ≤ 500 && 1 ≤ round(Int, c) ≤ 500
     end
 
@@ -275,9 +275,9 @@ end
         ransac_threshold = 5.0,
     )
 
-    # params.tfm maps img_to → img_from in (row, col) space.
+    # params.tfm maps img_from → img_to in (row, col) space.
     # tfm = inv(tfm2_back) ∘ tfm1_back → linear part ≈ R_rot' = R(-22°)
-    @test params.tfm.linear ≈ R_rot'  atol=0.02
+    @test params.tfm.linear ≈ R_rot  atol=0.02
 
     @test length(params.inlier_idxs) ≥ 6
 
