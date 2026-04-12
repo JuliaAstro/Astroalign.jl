@@ -43,6 +43,5 @@ img_aligned, params_aligned = align_frame(img_from, img_to)
 ```@docs
 Astroalign.align_frame
 Astroalign.get_sources
-Astroalign.find_nearest
 Astroalign.triangle_invariants
 ```

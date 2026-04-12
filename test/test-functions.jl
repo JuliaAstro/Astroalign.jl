@@ -12,18 +12,6 @@
     @test ℳ == invariants
 end
 
-@testset "find_nearest" begin
-    using Astroalign: find_nearest
-
-    C_to, ℳ_to = Data.combinations_to, Data.invariants
-    C_from, ℳ_from = Data.combinations_from, Data.invariants
-
-    sol_to, sol_from = find_nearest(C_to, ℳ_to, C_from, ℳ_from)
-
-    @test sol_to == Data.matched_triangle_to
-    @test sol_from == Data.matched_triangle_from
-end
-
 @testset "get_sources" begin
     using Astroalign: get_sources
 
@@ -49,12 +37,12 @@ end
 
     @test img_aligned ≈ img_to
     @test params.point_map == [
-        [5.0, 6.0] => [2.0, 6.0],
-        [9.0, 6.0] => [6.0, 6.0],
-        [9.0, 9.0] => [6.0, 9.0],
+        [9.0, 9.0] => [6.0, 9.0], 
+        [5.0, 6.0] => [2.0, 6.0], 
+        [9.0, 6.0] => [6.0, 6.0]
     ]
     @test params.tfm.linear ≈ [1 0; 0 1]
-    @test params.tfm.translation ≈ [3.0, 0.0]
+    @test params.tfm.translation ≈ [-3.0, 0.0]
 end
 
 @testset "_photometry" begin
@@ -103,6 +91,8 @@ end
     @test propertynames(p) == (
         :point_map,
         :tfm,
+        :correspondences,
+        :inlier_idxs,
         :C_from,
         :ℳ_from,
         :C_to,
