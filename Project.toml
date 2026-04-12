@@ -1,6 +1,6 @@
 name = "Astroalign"
 uuid = "7f4629bd-323a-4fad-ad42-4ee56350f27f"
-version = "0.1.0"
+version = "0.2.0"
 
 [workspace]
 projects = ["test", "docs"]
