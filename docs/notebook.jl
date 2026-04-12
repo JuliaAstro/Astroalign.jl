@@ -74,17 +74,12 @@ The rest of this notebook will walk through how this works behind the scenes and
 md"""
 ### Recovered transformation
 
-As a quick check, here is the transformation object `tfm` returned by `Astroalign.align_frame`:
+As a quick check, here is the transformation object `tfm` returned by `Astroalign.align_frame`, which defines the mapping `img_from => img_to`:
 """
 
 # ╔═╡ 0c7b43c9-0456-433c-800d-1234b66f54a0
 md"""
-Taking its inverse (to define the mapping from `img_from => img_to`), and decomposing it into its scale (`S`), rotation (`R`), and translation (`T`) components then gives (rounded for display):
-"""
-
-# ╔═╡ 25b3db66-d22d-4372-a15b-02031aeb01d4
-md"""
-This gives the following transformation parameters:
+Decomposing it into its scale (`S`), rotation (`R`), and translation (`T`) components then gives (rounded for display):
 """
 
 # ╔═╡ 6e44a52d-cc2a-45eb-ade3-001488cd2f49
@@ -444,7 +439,7 @@ PlutoUI.ExperimentalLayout.hbox(
 )
 
 # ╔═╡ 94974b07-81b5-46dd-8643-6b70449ca912
-S, R, T = decompose_tfm(inv(tfm_aligned))
+S, R, T = decompose_tfm(tfm_aligned)
 
 # ╔═╡ 2cd7bbd0-8ced-4e8c-9c05-a16e9710bcc8
 PlutoUI.ExperimentalLayout.hbox(
@@ -695,12 +690,11 @@ TableOfContents(; depth = 4)
 # ╠═445a0d35-2b49-42cc-8529-176778b0e090
 # ╟─7c1942c2-f61c-4c17-a0a5-0701c19d3d4f
 # ╟─fde0d2e4-e8ce-4861-8d53-43d58c9f8fe1
-# ╠═30c3ecfc-f676-4bad-8a04-cc54fa3cf0c2
+# ╟─30c3ecfc-f676-4bad-8a04-cc54fa3cf0c2
 # ╟─f72f1cd6-b3ff-4737-b7c2-bbca3e6c5b0f
 # ╟─0c7b43c9-0456-433c-800d-1234b66f54a0
 # ╟─2cd7bbd0-8ced-4e8c-9c05-a16e9710bcc8
 # ╠═94974b07-81b5-46dd-8643-6b70449ca912
-# ╟─25b3db66-d22d-4372-a15b-02031aeb01d4
 # ╠═ab647cad-f3e3-4e1d-b9b2-e9d31612e9fc
 # ╟─1a099207-213c-4326-9b38-5ba4a8bf70b8
 # ╟─6e44a52d-cc2a-45eb-ade3-001488cd2f49
