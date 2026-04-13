@@ -32,7 +32,7 @@ img_aligned, params_aligned = align_frame(img_from, img_to)
 ```
 
 !!! info
-    See the accompanying [Pluto.jl notebook](https://juliaastro.org/Astroalign.jl/notebook.html) for more on supported keywords and additional analysis.
+    See the [Walkthrough](@ref "Aligning Astronomical Images") page for more on supported keywords and a detailed step-by-step walkthrough of the algorithm.
 
 ## Contributing
 
