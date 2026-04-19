@@ -1,11 +1,11 @@
 @testset "triangle_invariants" begin
-    using Astroalign: triangle_invariants
+    using Astroalign: _triangle_invariants
 
     points = Data.points_to
     combinations = Data.combinations_to
     invariants = Data.invariants
 
-    C, ℳ = triangle_invariants(points)
+    C, ℳ = _triangle_invariants(points)
 
     @test length(C) == 1
     @test collect(C) == combinations
@@ -13,14 +13,14 @@
 end
 
 @testset "get_sources" begin
-    using Astroalign: get_sources
+    using Astroalign: _get_sources
 
     img = [
         1 0
         0 0
     ]
 
-    sources, subt, errs = get_sources(img)
+    sources, subt, errs = _get_sources(img)
 
     @test first(Tuple(sources)) == (x = 1, y = 1, value = 1.0)
     @test subt == img
@@ -97,5 +97,9 @@ end
         :ℳ_from,
         :C_to,
         :ℳ_to,
+        :phot_from_params,
+        :phot_to_params,
+        :aps_sol_from,
+        :aps_sol_to,
     )
 end
