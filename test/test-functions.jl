@@ -97,7 +97,6 @@ end
         :ℳ_to,
         :phot_from_params,
         :phot_to_params,
-        :aps_sol_from,
-        :aps_sol_to,
+        :sols,
     )
 end
