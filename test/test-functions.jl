@@ -1,11 +1,11 @@
 @testset "triangle_invariants" begin
-    using Astroalign: triangle_invariants
+    using Astroalign: _triangle_invariants
 
     points = Data.points_to
     combinations = Data.combinations_to
     invariants = Data.invariants
 
-    C, ℳ = triangle_invariants(points)
+    C, ℳ = _triangle_invariants(points)
 
     @test length(C) == 1
     @test collect(C) == combinations
@@ -13,14 +13,14 @@
 end
 
 @testset "get_sources" begin
-    using Astroalign: get_sources
+    using Astroalign: _get_sources
 
     img = [
         1 0
         0 0
     ]
 
-    sources, subt, errs = get_sources(img)
+    sources, subt, errs = _get_sources(img)
 
     @test first(Tuple(sources)) == (x = 1, y = 1, value = 1.0)
     @test subt == img
@@ -37,8 +37,8 @@ end
 
     @test img_aligned ≈ img_to
     @test params.point_map == [
-        [9.0, 9.0] => [6.0, 9.0], 
-        [5.0, 6.0] => [2.0, 6.0], 
+        [9.0, 9.0] => [6.0, 9.0],
+        [5.0, 6.0] => [2.0, 6.0],
         [9.0, 6.0] => [6.0, 6.0]
     ]
     @test params.tfm.linear ≈ [1 0; 0 1]
@@ -50,29 +50,27 @@ end
 
     img_to = Data.img_to
 
-    phot_to = _photometry(
-        img_to,
-        5, # box_size
-        2, # ap_radius
-        0.1, # min_fwhm
-        1, # nsigma
-        PSF();
+    phot_to, _ = _photometry(img_to;
+        box_size = 5,
+        ap_radius = 2,
+        min_fwhm = 0.1,
+        nsigma = 1,
+        f = PSF(),
+        N_max = 10,
         use_fitpos = false,
     )
-
     @test typeof(phot_to.xcenter) <: Vector{Int64}
     @test typeof(phot_to.ycenter) <: Vector{Int64}
 
-    phot_to = _photometry(
-        img_to,
-        5, # box_size
-        2, # ap_radius
-        0.1, # min_fwhm
-        1, # nsigma
-        PSF();
+    phot_to, _ = _photometry(img_to;
+        box_size = 5,
+        ap_radius = 2,
+        min_fwhm = 0.1,
+        nsigma = 1,
+        f = PSF(),
+        N_max = 10,
         use_fitpos = true,
     )
-
     @test typeof(phot_to.xcenter) <: Vector{Float64}
     @test typeof(phot_to.ycenter) <: Vector{Float64}
 end
@@ -97,5 +95,8 @@ end
         :ℳ_from,
         :C_to,
         :ℳ_to,
+        :phot_from_params,
+        :phot_to_params,
+        :sols,
     )
 end

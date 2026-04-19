@@ -1,9 +1,9 @@
 """
-    triangle_invariants(phot)
+    _triangle_invariants(phot)
 
 Returns all combinations (``C``) of three candidate point sources from the table of sources `phot` returned by [`Photometry.Aperture.photometry`](@extref), and the computed invariant ``\\mathscr M`` for each according to Eq. 3 from [_Beroiz, M., Cabral, J. B., & Sanchez, B. (2020)_](https://ui.adsabs.harvard.edu/abs/2020A%26C....3200384B/abstract).
 """
-function triangle_invariants(phot)
+function _triangle_invariants(phot)
     C = combinations(phot, 3)
     ℳ = map(C) do (pa, pb, pc)
         a, b, c = (
@@ -17,12 +17,16 @@ function triangle_invariants(phot)
     return C, ℳ
 end
 
-# Re-order the three vertices of a triangle so that:
-# 1. The apex (vertex opposite the longest edge) is last.
-# 2. The two base vertices are ordered counter-clockwise (positive cross product).
-# This canonical form is preserved under rotation and translation, so corresponding
-# triangles in two images receive the same vertex permutation and produce
-# geometrically consistent point correspondences.
+"""
+    _canonical_vertex_order(pa, pb, pc)
+
+Re-order the three vertices of a triangle so that:
+
+1. The apex (vertex opposite the longest edge) is last.
+1. The two base vertices are ordered counter-clockwise (positive cross product).
+
+This canonical form is preserved under rotation and translation, so corresponding triangles in two images receive the same vertex permutation and produce geometrically consistent point correspondences.
+"""
 function _canonical_vertex_order(pa, pb, pc)
     xa, ya = pa.xcenter, pa.ycenter
     xb, yb = pb.xcenter, pb.ycenter
@@ -54,7 +58,7 @@ end
 
 Build a `2 × 3 × 2 × N` array of candidate triangle-level correspondences
 between the `from` and `to` frames. The `C` and `ℳ` are the combinations of three
-points and their invariants as returned by [`Astroalign.triangle_invariants`](@ref).
+points and their invariants as returned by [`Astroalign._triangle_invariants`](@ref).
 
 The axes are `[coord, vertex, frame, match]`:
 
@@ -102,9 +106,15 @@ end
 # pixel² units) below which a triangle is considered degenerate (collinear).
 const _DEGENERATE_AREA = 1.0
 
-# Internal: fit a rigid or similarity transform to the single triangle match.
-# x is a 2×3×2×1 view from ransac: [coord, vertex, frame, 1]
-#   frame = 1 → from image,  frame = 2 → to image
+"""
+    _fit_triangle(x, scale::Bool)
+
+Internal: fit a rigid or similarity transform to the single triangle match.
+
+`x` is a 2×3×2×1 view from ransac: [coord, vertex, frame, 1]
+
+frame = 1 => from image, frame = 2 => to image
+"""
 function _fit_triangle(x, scale::Bool)
     pts_from = view(x, :, :, 1, 1)   # 2×3 — from-frame vertices
     pts_to   = view(x, :, :, 2, 1)   # 2×3 — to-frame vertices
@@ -134,7 +144,7 @@ least-squares sense via the Kabsch algorithm.
 Returns a one-element `Vector{AffineMap}` (forward: `from` → `to`), or an
 empty vector when the from-vertices are collinear.
 """
-_fit_minimal_rigid_triangle(x)      = _fit_triangle(x, false)
+_fit_minimal_rigid_triangle(x) = _fit_triangle(x, false)
 
 """
     _fit_minimal_similarity_triangle(x)

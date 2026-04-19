@@ -40,7 +40,7 @@ This is achieved via the following algorithm:
 - `box_size`: The size of the grid cells (in pixels) used to extract candidate point sources to use for alignment. Defaults to a tenth of the greatest common denominator of the dimensions of `img_to`. See [Photometry.jl > Source Detection Algorithms](@extref Photometry Source-Detection-Algorithms) for more.
 - `ap_radius`: The radius of the apertures (in pixel) to place around each point source. Defaults to 60% of `first(box_size)`. See [Photometry.jl > Aperture Photometry](@extref Photometry Aperture-Photometry) for more.
 - `f`: The function to compute within each aperture. Defaults to a 2D Gaussian fitted to the aperture center. See the [Source characterization](https://juliaastro.org/Astroalign.jl/notebook.html#Source-characterization) section of the accompanying Pluto.jl notebook for more.
-- `min_fwhm`: The minimum FWHM (in pixels) that an extracted point source must have to be considered as a control point. Defaults to a fifth of the width of the first image. See [PSFModels.jl > Fitting data](@extref PSFModels Fitting-data) for more.
+- `min_fwhm`: The minimum FWHM (in pixels) that an extracted point source must have to be considered as a control point. Defaults to a fifth of the width of the first image. See [PSFModels.jl > Fitting data](@extref PSFModels Fitting-data) for more. Set to `nothing` to use all identified sources as control points.
 - `nsigma`: The number of standard deviations above the estimated background that a source must be to be considered as a control point. Defaults to 1. See [Photometry.jl > Source Detection Algorithms](@extref Photometry Source-Detection-Algorithms) for more.
 - `N_max`: Maximal Number of (brightest) sources to consider for alignment (default is 10).
 - `scale`: If `true`, fit a similarity transformation (rotation + isotropic scale + translation) instead of a rigid transformation (rotation + translation only). Defaults to `false`.
@@ -63,12 +63,12 @@ function align_frame(img_from, img_to;
     ransac_threshold = float(ransac_threshold)
 
     # Step 1: Identify control points
-    phot_from = _photometry(img_from, box_size, ap_radius, min_fwhm, nsigma, f; N_max, filter_fwhm = true, use_fitpos)
-    phot_to = _photometry(img_to, box_size, ap_radius, min_fwhm, nsigma, f; N_max, filter_fwhm = true, use_fitpos)
+    phot_from, phot_from_params = _photometry(img_from; box_size, ap_radius, min_fwhm, nsigma, f, N_max, use_fitpos)
+    phot_to, phot_to_params = _photometry(img_to; box_size, ap_radius, min_fwhm, nsigma, f, N_max, use_fitpos)
 
     # Step 2: Calculate invariants
-    C_from, ℳ_from = triangle_invariants(phot_from)
-    C_to, ℳ_to = triangle_invariants(phot_to)
+    C_from, ℳ_from = _triangle_invariants(phot_from)
+    C_to, ℳ_to = _triangle_invariants(phot_to)
 
     # Step 3: Build candidate correspondence pool via nearest neighbors triangle matching
     correspondences = _build_correspondences(C_from, ℳ_from, C_to, ℳ_to)
@@ -78,10 +78,7 @@ function align_frame(img_from, img_to;
               "ensure both images contain at least 3 detectable point sources")
 
     # Step 4: RANSAC on triangle matches to find the largest set of mutually consistent correspondences (inliers)
-    fittingfn = scale ? _fit_minimal_similarity_triangle : _fit_minimal_rigid_triangle
-    tfm, inlier_idxs = ransac(
-        correspondences, fittingfn, _triangle_distfn, 1, ransac_threshold;
-    )
+    fwd_tfm_initial, inlier_idxs_initial = _ransac(correspondences; scale, ransac_threshold)
 
     # Step 5: Finalize the result by iteratively refining the transform.
     # Each pass: fit a new forward (from => to) transform on the current inlier set,
@@ -89,6 +86,59 @@ function align_frame(img_from, img_to;
     # array (not the previous inlier subset) lets previously-missed inliers be
     # recovered and incorrectly accepted ones drop out.
     # Note that _triangle_distfn expects a from => to transform.
+    tfm, inlier_idxs, point_map = _refine_transform(fwd_tfm_initial, inlier_idxs_initial, correspondences; final_iters, scale, ransac_threshold)
+
+    # Store corresponding apertures. Convenient for debugging.
+    # TODO: Will probably want to generalize this for
+    # https://github.com/JuliaAstro/Astroalign.jl/issues/4
+    # or just return bare coords.
+    sols = map(point_map) do sol
+        (
+            x_from = sol.first[1],
+            y_from = sol.first[2],
+            x_to = sol.second[1],
+            y_to = sol.second[2],
+        )
+    end |> Table
+
+    # Step 6: Apply the transform (from => to)
+    warp_img = warp(img_from, inv(tfm), axes(img_to))
+
+    return (
+        warp_img,
+        (;
+            point_map,
+            tfm,
+            correspondences,
+            inlier_idxs,
+            C_from,
+            ℳ_from,
+            C_to,
+            ℳ_to,
+            phot_from_params,
+            phot_to_params,
+            sols,
+        )
+    )
+end
+
+"""
+    _ransac(correspondences; scale, ransac_threshold)
+
+    RANSAC on triangle matches to find the largest set of mutually consistent correspondences (inliers).
+"""
+function _ransac(correspondences; scale, ransac_threshold)
+    fittingfn = scale ? _fit_minimal_similarity_triangle : _fit_minimal_rigid_triangle
+    tfm, inlier_idxs = ransac(correspondences, fittingfn, _triangle_distfn, 1, ransac_threshold)
+    return tfm, inlier_idxs
+end
+
+"""
+    _refine_transform(tfm, inlier_idxs, correspondences; final_iters, scale, ransac_threshold)
+
+Finalize matches returned by [`Astroalign._ransac`](@ref) by iteratively refining the transform.
+"""
+function _refine_transform(tfm, inlier_idxs, correspondences; final_iters, scale, ransac_threshold)
     for _ in 1:final_iters
         isempty(inlier_idxs) && break
         pts_from = reshape(correspondences[:, :, 1, inlier_idxs], 2, :)  # 2 × 3·N_inliers
@@ -105,20 +155,5 @@ function align_frame(img_from, img_to;
         [correspondences[:, v, 1, i] => correspondences[:, v, 2, i] for v in 1:3]
     end |> unique
 
-    # Step 6: Apply the transform (from => to)
-    warp_img = warp(img_from, inv(tfm), axes(img_to))
-
-    return (
-        warp_img,
-        (;
-            point_map,
-            tfm,
-            correspondences,
-            inlier_idxs,
-            C_from,
-            ℳ_from,
-            C_to,
-            ℳ_to,
-        )
-    )
+    return tfm, inlier_idxs, point_map
 end

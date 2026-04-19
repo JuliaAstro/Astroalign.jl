@@ -16,7 +16,7 @@ using Photometry:
     PeakMesh
 using TypedTables: Table
 
-export align_frame, get_sources, triangle_invariants
+export align_frame
 
 include("utils.jl")
 include("findpeaks.jl")

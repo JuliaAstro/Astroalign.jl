@@ -21,7 +21,7 @@ Credit: [_Beroiz, M., Cabral, J. B., & Sanchez, B. (2020)_](https://ui.adsabs.ha
 pkg> add Astroalign
 ```
 
-## Getting Started
+## Quickstart
 
 The following will align `img_from` onto `img_to`:
 
@@ -32,16 +32,8 @@ img_aligned, params_aligned = align_frame(img_from, img_to)
 ```
 
 !!! info
-    See the accompanying [Pluto.jl notebook](https://juliaastro.org/Astroalign.jl/notebook.html) for more on supported keywords and additional analysis.
+    See the [Walkthrough](@ref "Aligning Astronomical Images") page for more on supported keywords and a detailed step-by-step walkthrough of the algorithm.
 
 ## Contributing
 
 [Issues](https://github.com/JuliaAstro/Astroalign.jl/issues) and [pull requests](https://github.com/JuliaAstro/Astroalign.jl/pulls) welcome.
-
-# API / Reference
-
-```@docs
-Astroalign.align_frame
-Astroalign.get_sources
-Astroalign.triangle_invariants
-```

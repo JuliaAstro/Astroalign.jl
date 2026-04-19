@@ -1,10 +1,10 @@
-using Revise
-Revise.revise()
-
 using Documenter, DocumenterInterLinks
 using Documenter.Remotes: GitHub
 using Astroalign
 using AstroImages
+using CairoMakie
+
+CairoMakie.activate!(type = "png", px_per_unit = 2)
 
 links = InterLinks(
     "Photometry" => "https://juliaastro.org/Photometry/stable/",
@@ -21,7 +21,12 @@ makedocs(
         canonical = "https://juliaastro.org/Astroalign/stable/",
     ),
     plugins = [links],
-    warnonly = [:missing_docs]
+    pages = [
+        "Home" => "index.md",
+        "Walkthrough" => "walkthrough.md",
+        "API" => "api.md",
+    ],
+    warnonly = [:missing_docs],
 )
 
 deploydocs(;
