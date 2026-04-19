@@ -92,12 +92,14 @@ function align_frame(img_from, img_to;
     # TODO: Will probably want to generalize this for
     # https://github.com/JuliaAstro/Astroalign.jl/issues/4
     # or just return bare coords.
-    aps_sol_from = map(point_map) do sol
-        CircularAperture(sol.first[1], sol.first[2], ap_radius)
-    end
-    aps_sol_to = map(point_map) do sol
-        CircularAperture(sol.second[1], sol.second[2], ap_radius)
-    end
+    sols = map(point_map) do sol
+        (
+            x_from = sol.first[1],
+            y_from = sol.first[2],
+            x_to = sol.second[1],
+            y_to = sol.second[2],
+        )
+    end |> Table
 
     # Step 6: Apply the transform (from => to)
     warp_img = warp(img_from, inv(tfm), axes(img_to))
@@ -115,18 +117,27 @@ function align_frame(img_from, img_to;
             ℳ_to,
             phot_from_params,
             phot_to_params,
-            aps_sol_from,
-            aps_sol_to,
+            sols,
         )
     )
 end
 
+"""
+    _ransac(correspondences; scale, ransac_threshold)
+
+    RANSAC on triangle matches to find the largest set of mutually consistent correspondences (inliers).
+"""
 function _ransac(correspondences; scale, ransac_threshold)
     fittingfn = scale ? _fit_minimal_similarity_triangle : _fit_minimal_rigid_triangle
     tfm, inlier_idxs = ransac(correspondences, fittingfn, _triangle_distfn, 1, ransac_threshold)
     return tfm, inlier_idxs
 end
 
+"""
+    _refine_transform(tfm, inlier_idxs, correspondences; final_iters, scale, ransac_threshold)
+
+Finalize matches returned by [`Astroalign._ransac`](@ref) by iteratively refining the transform.
+"""
 function _refine_transform(tfm, inlier_idxs, correspondences; final_iters, scale, ransac_threshold)
     for _ in 1:final_iters
         isempty(inlier_idxs) && break

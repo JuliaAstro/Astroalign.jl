@@ -28,6 +28,11 @@ Base.@kwdef struct PSF
     kwargs = (; x_abstol = 2e-6)
 end
 
+"""
+    (p::PSF)(img)
+
+Callable for [PSFModels.fit](@extref) used by [Astroalign._photometry](@ref).
+"""
 (p::PSF)(img) = fit_psf(img, p)
 
 """
@@ -62,8 +67,13 @@ function fit_psf(img_ap, p)
     return (; psf_params, psf_model, psf_data)
 end
 
-# Internal function used by `align`
-# Calls to `Photometry.photometry` with reasonable defaults
+"""
+    _photometry(img; box_size, ap_radius, min_fwhm, nsigma, f, N_max, use_fitpos)
+
+Internal function used by [`align_frame`](@ref). Calls to [`Photometry.Aperture.photometry`](@extref) with reasonable defaults.
+
+See [`align_frame`](@ref) for keyword arguments.
+"""
 function _photometry(img; box_size, ap_radius, min_fwhm, nsigma, f, N_max, use_fitpos)
     # Sources, background subtracted image, background
     sources, subt, bkg, bkg_rms = _get_sources(img; box_size, nsigma, N_max)

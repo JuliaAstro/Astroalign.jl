@@ -1,3 +1,8 @@
+"""
+    _compute_box_size(img)
+
+Internal: suggested mesh size used by [Astroalign._get_sources][@ref]
+"""
 function _compute_box_size(img)
     w = gcd(size(img)...) ÷ 10
     box_width = iseven(w) ? w + 1 : w

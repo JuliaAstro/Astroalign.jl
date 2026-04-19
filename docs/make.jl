@@ -17,15 +17,16 @@ makedocs(
     repo = GitHub("JuliaAstro/Astroalign.jl"),
     sitename = "Astroalign.jl",
     format = Documenter.HTML(;
-        prettyurls = get(ENV, "CI", nothing) == "true",
+        prettyurls = true,
         canonical = "https://juliaastro.org/Astroalign/stable/",
     ),
     plugins = [links],
     pages = [
         "Home" => "index.md",
         "Walkthrough" => "walkthrough.md",
+        "API" => "api.md",
     ],
-    warnonly = [:missing_docs]
+    warnonly = [:missing_docs],
 )
 
 deploydocs(;

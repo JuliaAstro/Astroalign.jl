@@ -1,7 +1,3 @@
-```@meta
-CurrentModule = Astroalign
-```
-
 # Aligning Astronomical Images
 
 **Credit**: [_Beroiz, M., Cabral, J. B., & Sanchez, B. (2020)_](https://ui.adsabs.harvard.edu/abs/2020A%26C....3200384B/abstract)
@@ -12,175 +8,11 @@ Aligning images comes up a lot in astronomy, like for co-adding exposures or tim
 
 Enter [`astroalign.py`](https://github.com/quatrope/astroalign). This neat Python package sidesteps all of this by directly matching common star patterns between images to build a point-to-point correspondence. This page outlines the Julia reimplementation packaged as [JuliaAstro/Astroalign.jl](https://github.com/JuliaAstro/Astroalign.jl).
 
-```@setup align_example
-using Astroalign, AstroImages, PSFModels, Rotations, Photometry,
-      ImageTransformations, CoordinateTransformations, LinearAlgebra, Random
-using CairoMakie
-using ConsensusFitting: ransac
-
-CairoMakie.activate!(type = "png", px_per_unit = 2)
-
-# ── "Truth" transformation parameters ────────────────────────────────────────
-const SCALE_0, ROT_0, TRANS_0 = 0.8, π/8, [10, 7]
-const N_sources = 12
-
-# Fixed seed — star field 1 from the original notebook
-const RNG = Xoshiro(1)
-const FWHMS = [rand(RNG, 1:10) for _ in 1:N_sources]
-const img_size = (1:300, 1:300)
-
-# Modified from PSFModels.jl/test/fitting.jl
-function generate_model(rng, model, params, inds)
-    psf   = model.(CartesianIndices(inds); params..., amp = 30_000)
-    noise = rand(rng, 1000:3000, size(psf))
-    return psf .+ noise
-end
-
-# ── Generate the reference image ─────────────────────────────────────────────
-img_to = let
-    pad = 10
-    positions = rand(RNG, 1+pad:pad:300-pad, N_sources, 2)
-    imgs = map(zip(eachrow(positions), FWHMS)) do ((x, y), fwhm)
-        generate_model(RNG, gaussian, (; x, y, fwhm), img_size)
-    end
-    sum(imgs)
-end |> AstroImage;
-
-# ── Apply the "truth" transformation to produce img_from ─────────────────────
-const tfm_fwd_0 = Translation(TRANS_0...) ∘
-    LinearMap(RotMatrix2(ROT_0)) ∘
-    LinearMap(SCALE_0 * I)
-
-img_from = warp(img_to, tfm_fwd_0, axes(img_to);
-               fillvalue = ImageTransformations.Periodic()) |> AstroImage;
-
-# ── Shared colour-scale limits ────────────────────────────────────────────────
-const ZMIN, ZMAX = let
-    lims = Percent(99.5).((img_to, img_from))
-    minimum(first, lims), maximum(last, lims)
-end
-
-# ── Utility helpers ───────────────────────────────────────────────────────────
-function decompose_tfm(tfm)
-    M = tfm.linear
-    S = sqrt(M'M)
-    R = M * inv(S)
-    T = tfm.translation
-    return (; S, R, T)
-end
-
-p_diff(x, x0) = round(100 * (x - x0) / x0; digits = 3)
-p_diff(x::AbstractVector, x0::AbstractVector) =
-    round(100 * norm(x - x0) / norm(x0); digits = 3)
-
-# ── CairoMakie plot helpers ───────────────────────────────────────────────────
-function show_image!(ax, img; clims = (ZMIN, ZMAX))
-    d = parent(img)
-    n1, n2 = size(d)
-    heatmap!(ax, 1:n1, 1:n2, d'; colormap = :cividis, colorrange = clims)
-end
-
-function plot_pair(img_l, img_r; titles = ["Left", "Right"],
-                   srcpts_l = nothing, srcpts_r = nothing,
-                   src_color_l = :lime, src_color_r = :lime)
-    fig = Figure(size = (780, 360))
-    ax_l = Axis(fig[1, 1]; title = titles[1],
-                xlabel = "X (pixels)", ylabel = "Y (pixels)", aspect = DataAspect())
-    ax_r = Axis(fig[1, 2]; title = titles[2],
-                xlabel = "X (pixels)", aspect = DataAspect())
-    show_image!(ax_l, img_l')
-    show_image!(ax_r, img_r')
-    if !isnothing(srcpts_l)
-        scatter!(ax_l, srcpts_l[:, 1], srcpts_l[:, 2];
-                 color = src_color_l, markersize = 8, strokecolor = :black, strokewidth = 0.5)
-    end
-    if !isnothing(srcpts_r)
-        scatter!(ax_r, srcpts_r[:, 1], srcpts_r[:, 2];
-                 color = src_color_r, markersize = 8, strokecolor = :black, strokewidth = 0.5)
-    end
-    return fig
-end
-
-# ── RANSAC step helpers (expose internal pipeline) ────────────────────────────
-function step4(correspondences; scale = false, ransac_threshold = 3.0)
-    fittingfn = scale ? Astroalign._fit_minimal_similarity_triangle :
-                        Astroalign._fit_minimal_rigid_triangle
-    ransac(correspondences, fittingfn, Astroalign._triangle_distfn, 1, ransac_threshold)
-end
-
-function step_5(correspondences, fwd_tfm_0, inlier_idxs_0;
-                scale = false, ransac_threshold = 3.0)
-    fwd_tfm     = fwd_tfm_0
-    inlier_idxs = inlier_idxs_0
-    for _ in 1:3
-        isempty(inlier_idxs) && break
-        pts_from = reshape(correspondences[:, :, 1, inlier_idxs], 2, :)
-        pts_to   = reshape(correspondences[:, :, 2, inlier_idxs], 2, :)
-        new_fwd  = kabsch(pts_from => pts_to; scale)
-        new_idxs, _ = Astroalign._triangle_distfn([new_fwd], correspondences, ransac_threshold)
-        isempty(new_idxs) && break
-        fwd_tfm, inlier_idxs = new_fwd, new_idxs
-    end
-    point_map = mapreduce(vcat, inlier_idxs) do i
-        [correspondences[:, v, 1, i] => correspondences[:, v, 2, i] for v in 1:3]
-    end
-    return unique(point_map), inv(fwd_tfm)
-end
-```
-
-## Usage
-
-Here is a brief usage example aligning `img_from` onto `img_to`.
-In this example, `img_from` is `img_to` scaled by a factor of 0.8, rotated counter-clockwise by 22.5°, and translated by [10, 7] pixels.
-
-```@example align_example
-arr_from_aligned, params_aligned = align_frame(img_from, img_to; scale = true)
-nothing # hide
-```
-
-Plotting the input pair and the aligned result:
-
-```@example align_example
-plot_pair(img_from, img_to; titles = ["img_from", "img_to"])
-```
-
-```@example align_example
-plot_pair(AstroImage(arr_from_aligned), img_to; titles = ["img_from (aligned)", "img_to"])
-```
-
-That's it! The rest of this page walks through how this works behind the scenes and illustrates some knobs you can turn.
-
-### Recovered transformation
-
-The transformation object `tfm` returned by [`align_frame`](@ref) defines the mapping `img_from => img_to`:
-
-```@example align_example
-tfm_aligned = params_aligned.tfm
-```
-
-Decomposing it into scale (`S`), rotation (`R`), and translation (`T`) components:
-
-```@example align_example
-S, R, T = decompose_tfm(tfm_aligned)
-params_tfm = (scale = S[1], rot = atan(R[2, 1], R[1, 1]), trans = T)
-println("Scale       : $(round(params_tfm.scale; digits=4))  (truth: $SCALE_0, error: $(p_diff(params_tfm.scale, SCALE_0))%)")
-println("Rotation    : $(round(rad2deg(params_tfm.rot); digits=3))°  (truth: $(round(rad2deg(ROT_0); digits=1))°)")
-println("Translation : $(round.(params_tfm.trans; digits=2))  (truth: $TRANS_0, error: $(p_diff(params_tfm.trans, Float64.(TRANS_0)))%)")
-```
-
-Taking a look at our RANSAC pass, these final transformation values were determined from 10 out of 35 detected correspondences (28.6 %).
-
-```@example align_example
-n_inliers = length(params_aligned.inlier_idxs)
-n_total   = size(params_aligned.correspondences, 4)
-println("RANSAC inliers: $n_inliers / $n_total ($(round(100n_inliers/n_total; digits=1))%)")
-```
-
 ## How It Works
 
 [_Beroiz, Cabral, & Sanchez_](https://ui.adsabs.harvard.edu/abs/2020A%26C....3200384B/abstract) use the fact that triangles can be uniquely characterised to match sets of three stars (asterisms) between images. This point-to-point correspondence then gives everything needed to compute the affine transformation.
 
-For this implementation they use the invariant ``\mathscr M`` (the pair of two independent ratios of a triangle's side lengths, ``L_i``) to define this unique characterisation:
+For this implementation they use the invariant ``\mathscr M`` (the pair of two independent ratios of a triangle's side lengths, ``L_i``) to define this unique characterization:
 
 ```math
 \begin{align}
@@ -205,156 +37,368 @@ Astroalign.jl accomplishes this in the following steps:
    applied to all vertex pairs from all inlier triangle matches.
 6. Warp `img_from` to the coordinates of `img_to`.
 
-## Details
+The rest of this page will show how to align simulated images using this technique.
 
-The following sections walk through each step in detail using the same star fields shown in the [Usage](@ref) example above.
+## Packages
 
-### Step 1: Identify control points
+Here is a summary of the packages we will use in this walkthrough:
 
-#### Source extraction
+```@example walkthrough
+# Main package and visualization packages
+using Astroalign, CairoMakie
+using AstroImages: AstroImage, Percent, Zscale, set_cmap!
+set_cmap!(:cividis)
 
-`astroalign.py` uses [`sep`](https://github.com/quatrope/astroalign/blob/d7463b4ca48fc35f3d86a72343015491cdf20d6a/astroalign.py#L537) under the hood for its source extraction. We use [`Photometry.extract_sources`](https://juliaastro.org/Photometry/stable/detection/#Photometry.Detection.extract_sources) to pull out the regions around the brightest pixels and [`PSFModels.fit`](https://juliaastro.org/PSFModels/stable/api/#PSFModels.fit) to fit PSF models to each detected source, allowing us to pick out the ones that look like stars (vs. hot pixels, artifacts, etc.). In the future additional photometry options may be added. This process is executed by the `Astroalign.get_sources` function.
-
-```@example align_example
-sources_to, subt_to, _ = get_sources(img_to)
+# Simulated star fields
+using Random: Xoshiro
+using PSFModels: gaussian
+using LinearAlgebra: I, norm
+using Rotations: RotMatrix2
+using CoordinateTransformations: LinearMap, Translation
+using ImageTransformations: Periodic, warp
 ```
 
-#### Source characterisation
+## Star field generator ✨
 
-[`Photometry.photometry`](https://juliaastro.org/Photometry/stable/apertures/#Photometry.Aperture.photometry) automatically computes aperture sums and returns them in a nice table for us. We also pass a function, `Astroalign.PSF`, to compute some PSF statistics for each source and stores them in the table as well.
+We'll start by creating a simulated star field to align on. For simplicity, we'll just create 12 Gaussian point sources placed randomly in a 300 x 300 grid with some noise over the whole image:
 
-!!! note
-	Some PSF model fits may not converge for really noisy sources.
-
-```@example align_example
-box_size  = Astroalign._compute_box_size(img_to)
-ap_radius = 0.6 * first(box_size)
-
-aps_to  = CircularAperture.(sources_to.y, sources_to.x, ap_radius)
-phot_to = let
-    phot = photometry(aps_to, subt_to; f = Astroalign.PSF())
-    Astroalign.to_subpixel(phot, aps_to)
+```@example walkthrough
+# Modified from
+# https://github.com/JuliaAstro/PSFModels.jl/blob/main/test/fitting.jl
+function generate_model(rng, model, params, inds)
+    cartinds = CartesianIndices(inds)
+    psf = model.(cartinds; params..., amp = 30_000)
+    noise = rand(rng, 1000:3000, size(psf))
+    return psf .+ noise
 end
-sort!(phot_to; by = x -> hypot(x.aperture_f.psf_params.fwhm...), rev = true)
-phot_to
 ```
 
-In addition to the usual [`Photometry.photometry`](https://juliaastro.org/Photometry/stable/apertures/#Photometry.Aperture.photometry) fields returned, the `aperture_f` field contains a named tuple of PSF information computed by default with the `Astroalign.PSF()` callable:
+```@example walkthrough
+img_to = let
+    # Initial setup
+    rng = Xoshiro(1)
+    img_size = (1:300, 1:300)
+    N_sources = 12
+    FWHMs = [rand(rng, 1:10) for _ in 1:N_sources]
+    pad = 10 # Minimum space between the stars (in pixels)
+    positions_to = rand(rng, 1+pad:pad:300-pad, N_sources, 2)
 
-* `psf_params`: Named tuple of `x` and `y` center, and `fwhm` of fitted PSF relative to its aperture.
-* `psf_model`: The best fit PSF model. Uses a `gaussian` by default.
-* `psf_data`: The underlying intersection array of the data within the aperture being fit.
+    # Build stars
+    map(zip(eachrow(positions_to), FWHMs)) do ((x, y), fwhm)
+        generate_model(rng, gaussian, (; x, y, fwhm), img_size)
+    end
+# We wrap in an `AstroImage` to enable nice plotting recipes
+end |> sum |> AstroImage
+```
 
-The same parameters passed to `Photometry.fit` can also be passed to `Astroalign.PSF()`.
+We'll next create a transformed image that we would like to align back to the original:
 
-Below is a quick visual check comparing an observed point source with its fitted PSF model (source 1):
+```@example walkthrough
+# "Truth" values for transformation
+const SCALE_0, ROT_0, TRANS_0 = 0.8, π/8, [10, 7]
 
-```@example align_example
-let
-    psf_data  = phot_to[1].aperture_f.psf_data
-    psf_model = phot_to[1].aperture_f.psf_model
-    model_arr = psf_model.(CartesianIndices(psf_data))
+img_from = let
+    tfm = Translation(TRANS_0...) ∘
+        LinearMap(RotMatrix2(ROT_0)) ∘
+        LinearMap(SCALE_0 * I)
 
-    fig = Figure(size = (550, 240))
-    ax1 = Axis(fig[1, 1]; title = "Observed (normalised)", aspect = DataAspect())
-    ax2 = Axis(fig[1, 2]; title = "Fitted PSF model",      aspect = DataAspect())
-    n1, n2 = size(psf_data)
-    heatmap!(ax1, 1:n1, 1:n2, psf_data';  colormap = :magma)
-    heatmap!(ax2, 1:n1, 1:n2, model_arr'; colormap = :magma)
+    warp(img_to, tfm, axes(img_to); fillvalue = Periodic())
+end |> AstroImage
+```
+
+In this particular case, `img_from` is i) **scaled by a factor of 0.8**, ii) **rotated counter-clockwise by 22.5°**, and iii) **translated by [10, 7] pixels** to arrive at `img_to`. We will now show how to align this image and recover these initial transformation parameters with Astroalign.jl.
+
+First, here are some convenience functions that we will use to visualize our results:
+
+```@example walkthrough
+# Global colorbar lims
+const ZMIN, ZMAX = let
+    lims = Percent(99.5).((img_to, img_from))
+    minimum(first, lims), maximum(last, lims)
+end
+
+set_theme!(;
+    Axis = (; aspect = DataAspect(), xticks = LinearTicks(4), yticks = LinearTicks(4)),
+    Image = (; colorrange = (ZMIN, ZMAX), colormap = :cividis),
+    # For default aperure plots
+    Scatter = (;
+        cycle = [], # Disable so that `color` is not overriden
+        marker = Circle,
+        markersize = 36, # Roughly the aperture size used
+        markerspace = :data,
+        color = :transparent,
+        strokewidth = 2,
+        strokecolor = :lightgreen,
+    ),
+)
+
+function plot_pair(img_left, img_right;
+    titles = ["img_left", "img_right"],
+    colorrange = (ZMIN, ZMAX),
+)
+    fig = Figure(; size = (600, 300), figure_padding = (0, 0, 0, 0))
+
+    ax_from, p_from = image(fig[1, 1], AstroImage(img_left); colorrange)
+    ax_from.title = first(titles)
+
+    ax_to, p_to = image(fig[1, 2], AstroImage(img_right); colorrange)
+    ax_to.title = last(titles)
+    hideydecorations!(ax_to)
+
+    colsize!(fig.layout, 1, Aspect(1, 1.0))
+    colsize!(fig.layout, 2, Aspect(1, 1.0))
+
     fig
 end
 ```
 
-!!! note
-	PSF centers are relative to the aperture, while `xcenter` and `ycenter` are relative to the whole image. Astroalign.jl performs the necessary conversions from the former to the latter in `Astroalign.to_subpixel` before reporting the final fitted values.
+## Usage
 
-### Step 2: Calculate invariants
+We now use the exported [`align_frame`](@ref) function to align our image:
 
-This is done internally in [`align_frame`](@ref), but the invariants ``\mathscr M_i`` can also be exposed with [`triangle_invariants`](@ref). Below is a plot comparing the compents of the computed invariants for all control points in our `from` and `to` images. Overlapping regions between the `from` and `to` clouds indicate similar triangles found by Astroalign.jl. Compare to Fig. 1 in [Beroiz et al. (2020)](https://arxiv.org/pdf/1909.02946).
+```@example walkthrough
+arr_from_aligned, params_aligned = align_frame(img_from, img_to; scale = true)
+nothing
 
-```@example align_example
-C_to,   ℳ_to   = triangle_invariants(phot_to)
+plot_pair(arr_from_aligned, img_to; titles = ["img_from (aligned)", "img_to"])
+```
 
-# Obtain from-image invariants from the cached params returned by align_frame
-(; C_from, ℳ_from) = params_aligned
+That's it! See the next section for a brief analysis on how well we did.
 
-fig = Figure(size = (500, 440))
-ax  = Axis(fig[1, 1]; xlabel = "L₃/L₂", ylabel = "L₂/L₁",
-           title = "Triangle invariants")
-scatter!(ax, ℳ_to[1, :],   ℳ_to[2, :];   label = "img_to",   markersize = 6)
-scatter!(ax, ℳ_from[1, :], ℳ_from[2, :]; label = "img_from",
-         marker = :circle, markersize = 10, strokecolor = :dodgerblue,
-         strokewidth = 1.5, color = (:dodgerblue, 0))
-axislegend(ax; position = :rb)
+## Recovered transformation
+
+The transformation object `tfm` returned by [`align_frame`](@ref) defines the mapping `img_from => img_to`:
+
+```@example walkthrough
+tfm_aligned = params_aligned.tfm
+```
+
+Decomposing it into scale (`S`), rotation (`R`), and translation (`T`) components then gives:
+
+```@example walkthrough
+function decompose_tfm(tfm)
+    M = tfm.linear
+    S = sqrt(M'M)
+    R = M * inv(S)
+    T = tfm.translation
+    return (; S, R, T)
+end
+
+# To compare with "truth" values
+p_diff(x, x0) = round(100 * (x - x0) / x0; digits = 3)
+p_diff(x::AbstractVector, x0::AbstractVector) = round(100 * norm(x - x0) / norm(x0); digits = 3)
+print_diff(name, x, x0) = println(
+    "$(name) : $(round.(x; digits = 4)) (truth: $(x0), error: $(p_diff(x, x0))%)"
+)
+```
+
+```@example walkthrough
+S, R, T = decompose_tfm(tfm_aligned)
+
+params_tfm = (scale = S[1], rot = atan(R[2, 1], R[1, 1]), trans = T)
+
+print_diff("Scale", params_tfm.scale, SCALE_0)
+print_diff("Rotation", rad2deg(params_tfm.rot), rad2deg(ROT_0))
+print_diff("Translation", params_tfm.trans, TRANS_0)
+```
+
+Taking a look at our RANSAC pass, these final transformation values were determined from 10 out of 35 detected correspondences (28.6 %).
+
+```@example walkthrough
+n_inliers = length(params_aligned.inlier_idxs)
+n_total   = size(params_aligned.correspondences, 4)
+println("RANSAC inliers: $n_inliers / $n_total ($(round(100*n_inliers/n_total; digits = 1))%)")
+```
+
+The rest of this document will walk through how this is accomplished behind the scenes, and the different options that we can pass to [`align_frame`](@ref).
+
+## Step 1: Identify control points
+
+This step is done solely on the Photometry.jl side for both our `img_from` and `img_to` images, which Astroalign.jl calls with some reasonable defaults via [`Astroalign._photometry`](@ref).
+
+```@example walkthrough
+# Used by both img_from and img_to
+phot_kwargs = let
+    box_size = Astroalign._compute_box_size(img_to)
+    (;
+        box_size,
+        ap_radius = 0.6 * first(box_size),
+        min_fwhm = box_size .÷ 5,
+        nsigma = 1.0,
+        f = Astroalign.PSF(),
+        N_max = 10,
+        use_fitpos = true,
+    )
+end
+
+phot_to, phot_to_params = Astroalign._photometry(img_to; phot_kwargs...)
+phot_from, phot_from_params = Astroalign._photometry(img_from; phot_kwargs...)
+```
+
+This performs source extraction and source characterization of our images, storing the results in the `phot_from_params` and `phot_to_params` named tuples above. Here is a preview of the detected soures in each image:
+
+```@example walkthrough
+fig = plot_pair(img_from, img_to; titles = ["img_from", "img_to"])
+
+# Show apertures
+scatter!(fig.content[1], phot_from_params.sources.y, phot_from_params.sources.x)
+scatter!(fig.content[2], phot_to_params.sources.y, phot_to_params.sources.x)
+
 fig
+```
+
+### Source extraction
+
+`astroalign.py` uses [`sep`](https://github.com/quatrope/astroalign/blob/d7463b4ca48fc35f3d86a72343015491cdf20d6a/astroalign.py#L537) under the hood for its source extraction. We use [`Photometry.Detection.extract_sources`](@extref) to pull out the regions around the brightest pixels and [`PSFModels.fit`](@extref) to fit PSF models to each detected source, allowing us to pick out the ones that look like stars (vs. hot pixels, artifacts, etc.). This process is executed by [`Astroalign._get_sources`](@ref).
+
+In the future, additional photometry options may be added.
+
+### Source characterization
+
+[`Photometry.Aperture.photometry`](@extref) automatically computes aperture sums and returns them in a nice table for us. We also pass a function, `Astroalign.PSF`, to compute some PSF statistics for each source and stores them in the table as well.
+
+!!! note
+    Some PSF model fits may not converge for especially noisy data. Data cleaning / pre-procesing is outside the scope of this package.
+
+In addition to the usual photometry fields returned, the `aperture_f` field contains a named tuple of PSF information computed by default with the [`Astroalign.PSF()`](@ref) callable:
+
+- `psf_params`: Named tuple of `x` and `y` center, and `fwhm` of fitted PSF relative to its aperture.
+- `psf_model`: The best fit PSF model. Uses a [`PSFModels.gaussian`](@extref) by default.
+- `psf_data`: The underlying intersection array of the data within the aperture being fit.
+
+The same parameters passed to [`PSFModels.fit`](@extref) can also be passed to [`Astroalign.PSF()`](@ref).
+
+Below is a quick visual check comparing an observed point source with its fitted PSF model:
+
+```@example walkthrough
+function inspect_psf(phot; kwargs...)
+    psf_data, psf_model = phot.aperture_f.psf_data, phot.aperture_f.psf_model
+
+    println((; phot.xcenter, phot.ycenter))
+    println(phot.aperture_f.psf_params)
+
+    obs = AstroImage(psf_data)
+    psf = AstroImage(psf_model.(CartesianIndices(psf_data)))
+
+    plot_pair(obs, psf; kwargs...)
+end
+
+inspect_psf(first(phot_to); colorrange = (0, 1), titles = ["Data", "Model"])
+```
+
+!!! note
+    PSF centers are relative to the aperture, while `xcenter` and `ycenter` are relative to the whole image. Astroalign.jl performs the necessary conversions from the former to the latter in [`Astroalign.to_subpixel`](@ref) before reporting the final fitted values.
+
+With out sources identified, we now turn to the next step in the alignment algorithm.
+
+## Step 2: Calculate invariants
+
+This is done internally in [`align_frame`](@ref), but the invariants ``\mathscr M_i`` can also be exposed with [`Astroalign._triangle_invariants`](@ref).
+
+```@example walkthrough
+C_to, ℳ_to = Astroalign._triangle_invariants(phot_to)
+
+# This can also be accessed through the named tuple
+# returned by `Astroalign.align_frame`.
+(; C_from, ℳ_from) = params_aligned
+```
+
+Below is a plot comparing the compents of the computed invariants for all control points in our `from` and `to` images. Overlapping regions between the `from` and `to` clouds indicate similar triangles found by Astroalign.jl. Compare to Fig. 1 in [Beroiz et al. (2020)](https://arxiv.org/pdf/1909.02946).
+
+```@example walkthrough
+# Use default theme
+with_theme() do
+    fig, ax, p = scatter(ℳ_to[1, :], ℳ_to[2, :];
+        label = "img_to",
+    )
+
+    ax.xlabel = "L3/L2"
+    ax.ylabel = "L2/L1"
+
+    scatter!(ax, ℳ_from[1, :], ℳ_from[2, :];
+        markersize = 20,
+        color = :transparent,
+        strokewidth = 2,
+        strokecolor = :cornflowerblue,
+        label = "img_from",
+    )
+
+    axislegend()
+
+    fig
+end
 ```
 
 !!! note
     The number of triangle combinations may differ between frames if sources drift towards or off the edge of the frame between images. All that is needed is one matching triangle.
 
-### Step 3: Build candidate correspondences
+## Step 3: Build candidate correspondences
 
-We next build our list of candidate correspondences in this invariant space via a nearest neighbors search.
+We next build our list of candidate correspondences in this invariant space via a nearest neighbors search:
 
-```@example align_example
+```@example walkthrough
 correspondences = Astroalign._build_correspondences(C_from, ℳ_from, C_to, ℳ_to)
+
 println("Candidate triangle matches: $(size(correspondences, 4))")
 ```
 
-### Step 4: RANSAC pass
+## Step 4: RANSAC pass
 
-The largest mutually consistent set of correspondences ("inliers") is found via a RANSAC pass using [JuliaAstro/ConsensusFitting.jl](https://github.com/JuliaAstro/ConsensusFitting.jl):
+The largest mutually consistent set of correspondences ("inliers") is found via a RANSAC pass using [JuliaAstro/ConsensusFitting.jl](https://github.com/JuliaAstro/ConsensusFitting.jl) with [`Astroalign._ransac`](@ref):
 
-```@example align_example
-fwd_tfm_initial, inlier_idxs_initial = step4(correspondences;
-    scale = true, ransac_threshold = 3.0)
+```@example walkthrough
+ransac_kwargs = (;
+    scale = true,
+    ransac_threshold = 3.0,
+)
+
+fwd_tfm_initial, inlier_idxs_initial = Astroalign._ransac(correspondences;
+    ransac_kwargs...,
+)
+
 println("Initial RANSAC inliers: $(length(inlier_idxs_initial)) / $(size(correspondences, 4))")
 ```
 
-### Step 5: Refine transformation
+## Step 5: Refine transformation
 
-The transformation and inlier set from the previous step are successively refined using all detected control points, capturing previously missed inliers while dropping incorrect assignments:
+The transformation and inlier set from the previous step are successively refined via [`Astroalign._refine_transform`](@ref) using all detected control points, capturing previously missed inliers while dropping incorrect assignments:
 
-```@example align_example
-point_map, tfm = step_5(correspondences, fwd_tfm_initial, inlier_idxs_initial;
-    scale = true, ransac_threshold = 3.0)
-println("Final matched control-point pairs: $(length(point_map))")
+```@example walkthrough
+tfm, inlier_idxs, point_map = Astroalign._refine_transform(
+    fwd_tfm_initial, inlier_idxs_initial, correspondences;
+        ransac_kwargs...,
+        final_iters = 3,
+)
+```
+
+For this example, all 10 initial inliers remain after refinement:
+
+```
+println("Final RANSAC inliers: $(length(inlier_idxs)) / $(size(correspondences, 4))")
+
+inlier_idxs == inlier_idxs_initial
 ```
 
 The matched control points in both images are shown below:
 
-```@example align_example
-let
-    pts_from = reduce(hcat, [p.first  for p in point_map])'
-    pts_to   = reduce(hcat, [p.second for p in point_map])'
-    _colors = [cgrad(:magma)[z] for z in range(0, 1, length = size(pts_from, 1))]
+```@example walkthrough
+fig = plot_pair(img_from, img_to; titles = ["img_from", "img_to"])
 
-    fig = Figure(size = (780, 360))
-    ax_l = Axis(fig[1, 1]; title = "img_from — matched sources",
-                xlabel = "X (pixels)", ylabel = "Y (pixels)", aspect = DataAspect())
-    ax_r = Axis(fig[1, 2]; title = "img_to — matched sources",
-                xlabel = "X (pixels)", aspect = DataAspect())
-    show_image!(ax_l, img_from')
-    show_image!(ax_r, img_to')
-    scatter!(ax_l, pts_from[:, 1], pts_from[:, 2];
-    # scatter!(ax_l, pts_from[1, :], pts_from[2, :];
-             strokecolor = _colors,
-             color = :transparent, markersize = 40, strokewidth = 4)
-    scatter!(ax_r, pts_to[:, 1],   pts_to[:, 2];
-    # scatter!(ax_r, pts_to[1, :],   pts_to[2, :];
-             strokecolor = _colors,
-             color = :transparent, markersize = 40, strokewidth = 4)
-    fig
-end
+# Solution apertures
+sols = params_aligned.sols
+strokecolor = Makie.wong_colors()[1:length(sols)]
+scatter!(fig.content[1], sols.x_from, sols.y_from; strokecolor)
+scatter!(fig.content[2], sols.x_to, sols.y_to; strokecolor)
+
+fig
 ```
 
-### Step 6: Apply transformation
+## Step 6: Apply transformation
 
-Once the linear transformation parameters have been finalized in step 5, we hand it off to [ImageTransformations.jl](https://github.com/JuliaImages/ImageTransformations.jl) to perform resampling to align `img_from` with `img_to`:
+Once the linear transformation parameters have been finalized in [Step 5](@ref "Step 5: Refine transformation"), we hand it off to [`ImageTransformations.warp`](https://juliaimages.org/ImageTransformations.jl/stable/reference/#ImageTransformations.warp) to perform resampling to align `img_from` with `img_to`:
 
-```@example align_example
-img_aligned_from = AstroImage(warp(img_from, tfm, axes(img_to)))
+```@example walkthrough
+img_aligned_from = AstroImage(warp(img_from, inv(tfm), axes(img_to)))
+
 plot_pair(img_aligned_from, img_to; titles = ["img_from (aligned)", "img_to"])
 ```
-
-This should match the result returned by [`align_frame`](@ref) in the [Usage](@ref Usage) section above.
