@@ -1,9 +1,9 @@
 """
-    triangle_invariants(phot)
+    _triangle_invariants(phot)
 
 Returns all combinations (``C``) of three candidate point sources from the table of sources `phot` returned by [`Photometry.Aperture.photometry`](@extref), and the computed invariant ``\\mathscr M`` for each according to Eq. 3 from [_Beroiz, M., Cabral, J. B., & Sanchez, B. (2020)_](https://ui.adsabs.harvard.edu/abs/2020A%26C....3200384B/abstract).
 """
-function triangle_invariants(phot)
+function _triangle_invariants(phot)
     C = combinations(phot, 3)
     ℳ = map(C) do (pa, pb, pc)
         a, b, c = (
@@ -54,7 +54,7 @@ end
 
 Build a `2 × 3 × 2 × N` array of candidate triangle-level correspondences
 between the `from` and `to` frames. The `C` and `ℳ` are the combinations of three
-points and their invariants as returned by [`Astroalign.triangle_invariants`](@ref).
+points and their invariants as returned by [`Astroalign._triangle_invariants`](@ref).
 
 The axes are `[coord, vertex, frame, match]`:
 

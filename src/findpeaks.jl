@@ -1,11 +1,11 @@
 """
-    get_sources(img; box_size = nothing, nsigma = 1, N_max = 10)
+    _get_sources(img; box_size = nothing, nsigma = 1, N_max = 10)
 
 Extract candidate sources in `img` according to [`Photometry.Detection.extract_sources`](@extref). By default, `img` is first sigma clipped and then background subtracted before the candidate sources are extracted. `box_size` is passed to [`Photometry.Background.estimate_background`](@extref), and `nsigma` is passed to [`Photometry.Detection.extract_sources`](@extref). See the [Photometry.jl](@extref) documentation for more.
 
 TODO: Pass more options to clipping, background estimating, and extraction methods in [Photometry.jl](@extref).
 """
-function get_sources(img; box_size = _compute_box_size(img), nsigma = 1, N_max = 10)
+function _get_sources(img; box_size = _compute_box_size(img), nsigma = 1, N_max = 10)
     # Background subtract `img`
     clipped = sigma_clip(img, 1, fill = NaN)
     bkg, bkg_rms = estimate_background(clipped, box_size)
@@ -17,6 +17,7 @@ function get_sources(img; box_size = _compute_box_size(img), nsigma = 1, N_max =
         # And also return the inputs, handy for debugging and data viz
         subt,
         bkg,
+        bkg_rms,
     )
 end
 
@@ -63,9 +64,9 @@ end
 
 # Internal function used by `align`
 # Calls to `Photometry.photometry` with reasonable defaults
-function _photometry(img, box_size, ap_radius, min_fwhm, nsigma, f; N_max = 10, filter_fwhm = true, use_fitpos = true)
+function _photometry(img; box_size, ap_radius, min_fwhm, nsigma, f, N_max, use_fitpos)
     # Sources, background subtracted image, background
-    sources, subt, _ = get_sources(img; box_size, nsigma, N_max)
+    sources, subt, bkg, bkg_rms = _get_sources(img; box_size, nsigma, N_max)
 
     # Define apertures
     aps = CircularAperture.(sources.y, sources.x, ap_radius)
@@ -78,15 +79,15 @@ function _photometry(img, box_size, ap_radius, min_fwhm, nsigma, f; N_max = 10, 
         phot = to_subpixel(phot, aps)
     end
 
-    if filter_fwhm
+    if !isnothing(min_fwhm)
         filter!(phot) do source
-            hypot(min_fwhm...) ≤ hypot(source.aperture_f.psf_params.fwhm...)
+            hypot(source.aperture_f.psf_params.fwhm...) ≥ hypot(min_fwhm...)
         end
     end
 
     sort!(phot; by = x -> hypot(x.aperture_f.psf_params.fwhm...), rev = true)
 
-    return phot
+    return phot, (; sources, subt, bkg, bkg_rms, aps)
 end
 
 """
