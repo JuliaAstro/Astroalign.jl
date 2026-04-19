@@ -37,8 +37,8 @@ end
 
     @test img_aligned ≈ img_to
     @test params.point_map == [
-        [9.0, 9.0] => [6.0, 9.0], 
-        [5.0, 6.0] => [2.0, 6.0], 
+        [9.0, 9.0] => [6.0, 9.0],
+        [5.0, 6.0] => [2.0, 6.0],
         [9.0, 6.0] => [6.0, 6.0]
     ]
     @test params.tfm.linear ≈ [1 0; 0 1]
@@ -50,29 +50,27 @@ end
 
     img_to = Data.img_to
 
-    phot_to = _photometry(
-        img_to,
-        5, # box_size
-        2, # ap_radius
-        0.1, # min_fwhm
-        1, # nsigma
-        PSF();
+    phot_to, _ = _photometry(img_to;
+        box_size = 5,
+        ap_radius = 2,
+        min_fwhm = 0.1,
+        nsigma = 1,
+        f = PSF(),
+        N_max = 10,
         use_fitpos = false,
     )
-
     @test typeof(phot_to.xcenter) <: Vector{Int64}
     @test typeof(phot_to.ycenter) <: Vector{Int64}
 
-    phot_to = _photometry(
-        img_to,
-        5, # box_size
-        2, # ap_radius
-        0.1, # min_fwhm
-        1, # nsigma
-        PSF();
+    phot_to, _ = _photometry(img_to;
+        box_size = 5,
+        ap_radius = 2,
+        min_fwhm = 0.1,
+        nsigma = 1,
+        f = PSF(),
+        N_max = 10,
         use_fitpos = true,
     )
-
     @test typeof(phot_to.xcenter) <: Vector{Float64}
     @test typeof(phot_to.ycenter) <: Vector{Float64}
 end
