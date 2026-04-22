@@ -10,6 +10,7 @@
         [ransac_threshold],
         [final_iters],
         [use_fitpos],
+        [warp_function],
     )
 
 Align `img_from` onto `img_to`, assuming both images are related via a rigid
@@ -47,6 +48,7 @@ This is achieved via the following algorithm:
 - `ransac_threshold`: Pixel-distance threshold below which a correspondence is classified as an inlier by RANSAC. Defaults to `3.0`.
 - `final_iters`: Number of iterative-refinement passes after RANSAC (default `3`). Each pass fits a new transform from the current inlier set and re-scores all correspondences to admit new inliers or drop old ones.
 - `use_fitpos`: if `true` (default), the fit results are used in the position estimate for the triangles and thus the alignment.
+- `warp_function`: Coordinate transformation (warping) function to use. The function maintains the call signature `warp_function(img_from, inv(tfm), axes(img_to))`, with the input image `img_from`, the transform to apply `inv(tfm)` and the `axes()` of the destination `img_to`. By default [`ImageTransformations.warp`](https://juliaimages.org/ImageTransformations.jl/stable/reference/#ImageTransformations.warp) is used. Note that `warp_function` can potentially modify inputs provided via Julia's closure mechanism.
 """
 function align_frame(img_from, img_to;
     box_size = _compute_box_size(img_to),
@@ -59,6 +61,7 @@ function align_frame(img_from, img_to;
     ransac_threshold::Real = 3.0,
     final_iters::Int = 3,
     use_fitpos = true,
+    warp_function = warp
 )
     ransac_threshold = float(ransac_threshold)
 
@@ -102,7 +105,7 @@ function align_frame(img_from, img_to;
     end |> Table
 
     # Step 6: Apply the transform (from => to)
-    warp_img = warp(img_from, inv(tfm), axes(img_to))
+    warp_img = warp_function(img_from, inv(tfm), axes(img_to))
 
     return (
         warp_img,
