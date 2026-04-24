@@ -1,55 +1,7 @@
 """
-    fit_psf(img_ap, p)
-
-fits a point spread function model to a region of interest (`img_ap`) using the Optim toolbox.
-returned is a named Tuple:
-(; psf_params, psf_model, psf_data)
-with the `psf_params` also being a named tuple 
-(; x, y, fwhm)
-"""
-function fit_psf(img_ap, p)
-    # Normalize
-    psf_data = collect(Float32, img_ap)
-    psf_data ./= maximum(psf_data)
-
-    # Set params
-    y, x = if !hasproperty(p.params, :x) && !hasproperty(p.params, :y)
-        Tuple(argmax(psf_data))
-    else
-        p.params.x, p.params.y
-    end
-
-    fwhm = if !hasproperty(p.params, :fwhm)
-        _compute_box_size(img_ap)
-    else
-        p.params.fwhm
-    end
-
-    amp = if !hasproperty(p.params, :amp)
-        1.0
-    else
-        p.params.amp
-    end
-
-    # TODO: Generalize to other PSFs
-    # params = (; x, y, fwhm, amp)
-    params = (; x, y, fwhm)
-
-    # Fit
-    psf_params, psf_model = fit(p.model, params, psf_data; func_kwargs=p.func_kwargs, p.kwargs...)
-
-    return (; psf_params, psf_model, psf_data)
-end
-
-"""
     com_psf(img_ap)
 
-determins peak parameters via a fast, non-iterative center-of-mass approach.
-
-returned is a named Tuple:
-(; psf_params, psf_model, psf_data)
-with the `psf_params` also being a named tuple 
-(; x, y, fwhm)
+Determine peak parameters via a fast, non-iterative center-of-mass approach.
 """
 function com_psf(img_ap; rel_thresh=0.1f0)
     psf_data = collect(Float32, img_ap)

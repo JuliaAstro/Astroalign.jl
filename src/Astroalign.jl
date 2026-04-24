@@ -1,7 +1,8 @@
 module Astroalign
 
 using Combinatorics: combinations
-using CoordinateTransformations: kabsch
+using ConsensusFitting: ransac
+using CoordinateTransformations: kabsch, AffineMap
 using Distances: euclidean
 using ImageTransformations: warp
 using NearestNeighbors: nn, KDTree
@@ -15,9 +16,8 @@ using Photometry:
     PeakMesh
 using TypedTables: Table
 
-export align_frame, get_sources, find_nearest, triangle_invariants
+export align_frame, find_transform
 
-include("utils.jl")
 include("findpeaks.jl")
 include("register.jl")
 include("psf.jl")
