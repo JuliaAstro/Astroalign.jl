@@ -49,6 +49,7 @@ This is achieved via the following algorithm:
 - `final_iters`: Number of iterative-refinement passes after RANSAC (default `3`). Each pass fits a new transform from the current inlier set and re-scores all correspondences to admit new inliers or drop old ones.
 - `use_fitpos`: if `true` (default), the fit results are used in the position estimate for the triangles and thus the alignment.
 - `warp_function`: Coordinate transformation (warping) function to use. The function maintains the call signature `warp_function(img_from, inv(tfm), axes(img_to))`, with the input image `img_from`, the transform to apply `inv(tfm)` and the `axes()` of the destination `img_to`. By default [`ImageTransformations.warp`](https://juliaimages.org/ImageTransformations.jl/stable/reference/#ImageTransformations.warp) is used. Note that `warp_function` can potentially modify inputs provided via Julia's closure mechanism.
+- `phot_from`: if supplied, these parameters are not recalculated. Default: `nothing`.
 """
 function align_frame(img_from, img_to;
     box_size = _compute_box_size(img_to),
@@ -61,12 +62,15 @@ function align_frame(img_from, img_to;
     ransac_threshold::Real = 3.0,
     final_iters::Int = 3,
     use_fitpos = true,
-    warp_function = warp
+    warp_function = warp,
+    phot_from = nothing,
 )
     ransac_threshold = float(ransac_threshold)
 
     # Step 1: Identify control points
-    phot_from, phot_from_params = _photometry(img_from; box_size, ap_radius, min_fwhm, nsigma, f, N_max, use_fitpos)
+    if isnothing(phot_from)
+        phot_from, phot_from_params = _photometry(img_from; box_size, ap_radius, min_fwhm, nsigma, f, N_max, use_fitpos)
+    end
     phot_to, phot_to_params = _photometry(img_to; box_size, ap_radius, min_fwhm, nsigma, f, N_max, use_fitpos)
 
     # Step 2: Calculate invariants
