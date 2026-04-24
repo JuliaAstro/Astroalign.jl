@@ -51,20 +51,18 @@ This is achieved via the following algorithm:
 - `warp_function`: Coordinate transformation (warping) function to use. The function maintains the call signature `warp_function(img_from, inv(tfm), axes(img_to))`, with the input image `img_from`, the transform to apply `inv(tfm)` and the `axes()` of the destination `img_to`. By default [`ImageTransformations.warp`](https://juliaimages.org/ImageTransformations.jl/stable/reference/#ImageTransformations.warp) is used. Note that `warp_function` can potentially modify inputs provided via Julia's closure mechanism.
 """
 function align_frame(img_from, img_to;
-    box_size = _compute_box_size(img_to),
-    ap_radius = 0.6 * first(box_size),
+    box_size = (3, 3),
+    ap_radius = 9,
     f = PSF(),
-    min_fwhm = box_size .÷ 5,
+    min_fwhm = 2.0,
     nsigma = 1,
     N_max = 10,
-    scale::Bool = false,
-    ransac_threshold::Real = 3.0,
-    final_iters::Int = 3,
     use_fitpos = true,
+    scale = false,
+    ransac_threshold = 3.0,
+    final_iters = 3,
     warp_function = warp
 )
-    ransac_threshold = float(ransac_threshold)
-
     # Step 1: Identify control points
     phot_from, phot_from_params = _photometry(img_from; box_size, ap_radius, min_fwhm, nsigma, f, N_max, use_fitpos)
     phot_to, phot_to_params = _photometry(img_to; box_size, ap_radius, min_fwhm, nsigma, f, N_max, use_fitpos)
@@ -110,8 +108,8 @@ function align_frame(img_from, img_to;
     return (
         warp_img,
         (;
-            point_map,
             tfm,
+            point_map,
             correspondences,
             inlier_idxs,
             C_from,

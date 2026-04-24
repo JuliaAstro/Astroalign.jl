@@ -5,7 +5,7 @@ Extract candidate sources in `img` according to [`Photometry.Detection.extract_s
 
 TODO: Pass more options to clipping, background estimating, and extraction methods in [Photometry.jl](@extref).
 """
-function _get_sources(img; box_size = _compute_box_size(img), nsigma = 1, N_max = 10)
+function _get_sources(img; box_size, nsigma, N_max)
     # Background subtract `img`
     clipped = sigma_clip(img, 1, fill = NaN)
     bkg, bkg_rms = estimate_background(clipped, box_size)
@@ -23,7 +23,7 @@ end
 
 Base.@kwdef struct PSF
     model = gaussian
-    params = (;)
+    params = (; fwhm = 1.5)
     func_kwargs = (;)
     kwargs = (; x_abstol = 2e-6)
 end
@@ -52,11 +52,7 @@ function fit_psf(img_ap, p)
         p.params.x, p.params.y
     end
 
-    fwhm = if !hasproperty(p.params, :fwhm)
-        _compute_box_size(img_ap)
-    else
-        p.params.fwhm
-    end
+    fwhm = p.params.fwhm
 
     # TODO: Generalize to other PSFs
     params = (; x, y, fwhm)
