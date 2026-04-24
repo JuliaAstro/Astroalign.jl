@@ -9,6 +9,7 @@ CairoMakie.activate!(type = "png", px_per_unit = 2)
 links = InterLinks(
     "Photometry" => "https://juliaastro.org/Photometry/stable/",
     "PSFModels" => "https://juliaastro.org/PSFModels/stable/",
+    "BackgroundMeshes" => "https://juliaastro.org/BackgroundMeshes/stable/",
 )
 
 makedocs(
