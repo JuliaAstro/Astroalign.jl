@@ -226,12 +226,14 @@ println("RANSAC inliers: $n_inliers / $n_total ($(round(100*n_inliers/n_total; d
 
 The rest of this document will walk through how this is accomplished behind the scenes, and the different options that we can pass to [`align_frame`](@ref).
 
+!!! tip
+    Use [`find_transform`](@ref) to just compute the transformation without applying it to the image. This is useful for checking parameters beforehand or storing them for future analysis.
+
 ## Step 1: Identify control points
 
 This step is done solely on the Photometry.jl side for both our `img_from` and `img_to` images, which Astroalign.jl calls with some reasonable defaults via [`Astroalign._photometry`](@ref).
 
 ```@example walkthrough
-
 phot_to, phot_to_params = Astroalign._photometry(img_to; opts_phot...)
 phot_from, phot_from_params = Astroalign._photometry(img_from; opts_phot...)
 ```
@@ -290,7 +292,7 @@ inspect_psf(first(phot_to); colorrange = (0, 1), titles = ["Data", "Model"])
 !!! note
     PSF centers are relative to the aperture, while `xcenter` and `ycenter` are relative to the whole image. Astroalign.jl performs the necessary conversions from the former to the latter in [`Astroalign.to_subpixel`](@ref) before reporting the final fitted values.
 
-With out sources identified, we now turn to the next step in the alignment algorithm.
+With our sources identified, we now turn to the next step in the alignment algorithm.
 
 ## Step 2: Calculate invariants
 
@@ -375,10 +377,10 @@ The matched control points in both images are shown below:
 fig = plot_pair(img_from, img_to; titles = ["img_from", "img_to"])
 
 # Solution apertures
-sols = params_aligned.sols
-strokecolor = Makie.categorical_colors(:tab10, length(sols))
-scatter!(fig.content[1], sols.x_from, sols.y_from; strokecolor)
-scatter!(fig.content[2], sols.x_to, sols.y_to; strokecolor)
+x_from, y_from, x_to, y_to = (getindex.(f.(point_map), i) for f in (first, last) for i in (1, 2))
+strokecolor = Makie.categorical_colors(:tab10, length(x_from))
+scatter!(fig.content[1], x_from, y_from; strokecolor)
+scatter!(fig.content[2], x_to, y_to; strokecolor)
 
 fig
 ```
