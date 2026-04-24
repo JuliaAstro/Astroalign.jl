@@ -171,7 +171,7 @@ opts_ransac = (; scale = true, ransac_threshold = 3.0);
 opts_refinement = (; final_iters = 3, opts_ransac...)
 
 # Align
-arr_from_aligned, params_aligned = align_frame(img_from, img_to; opts_phot..., opts_refinement...);
+arr_from_aligned = align_frame(img_from, img_to; opts_phot..., opts_refinement...);
 
 # Visualize
 plot_pair(arr_from_aligned, img_to; titles = ["img_from (aligned)", "img_to"])
@@ -181,11 +181,14 @@ That's it! See the next section for a brief analysis on how well we did.
 
 ## Recovered transformation
 
-The transformation object `tfm` returned by [`align_frame`](@ref) defines the mapping `img_from => img_to`:
+We can investigate the underlying transformation process by calling [`find_transform`](@ref):
 
 ```@example walkthrough
-tfm_aligned = params_aligned.tfm
+tfm_aligned, params_aligned = find_transform(img_from, img_to; opts_phot..., opts_refinement...);
 ```
+
+!!! tip
+    This can be used in conjunction with [`apply_transform`](@ref) to apply the transformation found. This is what [`align_frame`](@ref) calls under the hood.
 
 Decomposing it into scale (`S`), rotation (`R`), and translation (`T`) components then gives:
 
@@ -225,9 +228,6 @@ println("RANSAC inliers: $n_inliers / $n_total ($(round(100*n_inliers/n_total; d
 ```
 
 The rest of this document will walk through how this is accomplished behind the scenes, and the different options that we can pass to [`align_frame`](@ref).
-
-!!! tip
-    Use [`find_transform`](@ref) to just compute the transformation without applying it to the image. This is useful for checking parameters beforehand or storing them for future analysis.
 
 ## Step 1: Identify control points
 
@@ -302,7 +302,7 @@ This is done internally in [`align_frame`](@ref), but the invariants ``\mathscr 
 C_to, ℳ_to = Astroalign._triangle_invariants(phot_to)
 
 # This can also be accessed through the named tuple
-# returned by `Astroalign.align_frame`.
+# returned by `find_transform`.
 (; C_from, ℳ_from) = params_aligned
 ```
 
