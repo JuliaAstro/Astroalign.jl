@@ -38,10 +38,10 @@ This is achieved via the following algorithm:
 
 # Parameters
 
-- `box_size`: The size of the grid cells (in pixels) used to extract candidate point sources to use for alignment. Defaults to a tenth of the greatest common denominator of the dimensions of `img_to`. See [Photometry.jl > Source Detection Algorithms](@extref Photometry Source-Detection-Algorithms) for more.
-- `ap_radius`: The radius of the apertures (in pixel) to place around each point source. Defaults to 60% of `first(box_size)`. See [Photometry.jl > Aperture Photometry](@extref Photometry Aperture-Photometry) for more.
-- `f`: The function to compute within each aperture. Defaults to a 2D Gaussian fitted to the aperture center. See the [Source characterization](https://juliaastro.org/Astroalign.jl/notebook.html#Source-characterization) section of the accompanying Pluto.jl notebook for more.
-- `min_fwhm`: The minimum FWHM (in pixels) that an extracted point source must have to be considered as a control point. Defaults to a fifth of the width of the first image. See [PSFModels.jl > Fitting data](@extref PSFModels Fitting-data) for more. Set to `nothing` to use all identified sources as control points.
+- `box_size`: The size of the grid cells (in pixels) used to extract candidate point sources to use for alignment. Defaults to (3, 3) pixels. See [Photometry.jl > Source Detection Algorithms](@extref Photometry Source-Detection-Algorithms) for more.
+- `ap_radius`: The radius of the apertures (in pixel) to place around each point source. Defaults to 9 pixels. See [Photometry.jl > Aperture Photometry](@extref Photometry Aperture-Photometry) for more.
+- `f`: The function to compute within each aperture. Defaults to a 2D Gaussian fitted to the aperture center, with default FWHM of 1.5 pixels. See the [Source characterization](https://juliaastro.org/Astroalign.jl/notebook.html#Source-characterization) section of the accompanying Pluto.jl notebook for more.
+- `min_fwhm`: The minimum FWHM (in pixels) that an extracted point source must have to be considered as a control point. Defaults to 2 pixels. See [PSFModels.jl > Fitting data](@extref PSFModels Fitting-data) for more. Set to `nothing` to use all identified sources as control points.
 - `nsigma`: The number of standard deviations above the estimated background that a source must be to be considered as a control point. Defaults to 1. See [Photometry.jl > Source Detection Algorithms](@extref Photometry Source-Detection-Algorithms) for more.
 - `N_max`: Maximal Number of (brightest) sources to consider for alignment (default is 10).
 - `scale`: If `true`, fit a similarity transformation (rotation + isotropic scale + translation) instead of a rigid transformation (rotation + translation only). Defaults to `false`.
@@ -51,20 +51,18 @@ This is achieved via the following algorithm:
 - `warp_function`: Coordinate transformation (warping) function to use. The function maintains the call signature `warp_function(img_from, inv(tfm), axes(img_to))`, with the input image `img_from`, the transform to apply `inv(tfm)` and the `axes()` of the destination `img_to`. By default [`ImageTransformations.warp`](https://juliaimages.org/ImageTransformations.jl/stable/reference/#ImageTransformations.warp) is used. Note that `warp_function` can potentially modify inputs provided via Julia's closure mechanism.
 """
 function align_frame(img_from, img_to;
-    box_size = _compute_box_size(img_to),
-    ap_radius = 0.6 * first(box_size),
+    box_size = (3, 3),
+    ap_radius = 9,
     f = PSF(),
-    min_fwhm = box_size .÷ 5,
+    min_fwhm = 2.0,
     nsigma = 1,
     N_max = 10,
-    scale::Bool = false,
-    ransac_threshold::Real = 3.0,
-    final_iters::Int = 3,
     use_fitpos = true,
+    scale = false,
+    ransac_threshold = 3.0,
+    final_iters = 3,
     warp_function = warp
 )
-    ransac_threshold = float(ransac_threshold)
-
     # Step 1: Identify control points
     phot_from, phot_from_params = _photometry(img_from; box_size, ap_radius, min_fwhm, nsigma, f, N_max, use_fitpos)
     phot_to, phot_to_params = _photometry(img_to; box_size, ap_radius, min_fwhm, nsigma, f, N_max, use_fitpos)
@@ -110,8 +108,8 @@ function align_frame(img_from, img_to;
     return (
         warp_img,
         (;
-            point_map,
             tfm,
+            point_map,
             correspondences,
             inlier_idxs,
             C_from,

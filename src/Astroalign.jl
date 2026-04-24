@@ -18,7 +18,6 @@ using TypedTables: Table
 
 export align_frame
 
-include("utils.jl")
 include("findpeaks.jl")
 include("register.jl")
 include("warp.jl")

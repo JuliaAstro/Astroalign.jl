@@ -20,7 +20,7 @@ end
         0 0
     ]
 
-    sources, subt, errs = _get_sources(img)
+    sources, subt, errs = _get_sources(img; box_size = 1, nsigma = 1, N_max = 10)
 
     @test first(Tuple(sources)) == (x = 1, y = 1, value = 1.0)
     @test subt == img
@@ -33,7 +33,7 @@ end
     img_to = Data.img_to
     img_from = Data.img_from
 
-    img_aligned, params = align_frame(img_from, img_to; min_fwhm = (0.1, 0.1))
+    img_aligned, params = align_frame(img_from, img_to; box_size = 1, ap_radius = 1, min_fwhm = (0.1, 0.1))
 
     @test img_aligned ≈ img_to
     @test params.point_map == [
@@ -45,7 +45,7 @@ end
     @test params.tfm.translation ≈ [-3.0, 0.0]
 end
 
-@testset "_photometry" begin
+@testset "photometry" begin
     using Astroalign: _photometry, PSF
 
     img_to = Data.img_to
@@ -82,13 +82,16 @@ end
     img_from = Data.img_from
 
     img_aligned, p = Astroalign.align_frame(img_to, img_from;
-        f = Astroalign.PSF(params = (x = 6, y = 6, fwhm = 3))
+        box_size = 1,
+        ap_radius = 1,
+        min_fwhm = 0.1,
+        f = Astroalign.PSF(params = (x = 6, y = 6, fwhm = 0.2))
     )
 
     @test img_aligned isa AbstractMatrix
     @test propertynames(p) == (
-        :point_map,
         :tfm,
+        :point_map,
         :correspondences,
         :inlier_idxs,
         :C_from,

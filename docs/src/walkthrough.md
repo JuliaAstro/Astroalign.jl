@@ -157,9 +157,23 @@ end
 We now use the exported [`align_frame`](@ref) function to align our image:
 
 ```@example walkthrough
-arr_from_aligned, params_aligned = align_frame(img_from, img_to; scale = true)
-nothing
+# Available options
+opts_phot = (;
+    box_size = (31, 31),
+    ap_radius = 18.6,
+    min_fwhm = (3, 3),
+    nsigma = 1,
+    f = Astroalign.PSF(params = (fwhm = (6, 6),)),
+    N_max = 10,
+    use_fitpos = true,
+);
+opts_ransac = (; scale = true, ransac_threshold = 3.0);
+opts_refinement = (; final_iters = 3, opts_ransac...)
 
+# Align
+arr_from_aligned, params_aligned = align_frame(img_from, img_to; opts_phot..., opts_refinement...);
+
+# Visualize
 plot_pair(arr_from_aligned, img_to; titles = ["img_from (aligned)", "img_to"])
 ```
 
@@ -217,22 +231,9 @@ The rest of this document will walk through how this is accomplished behind the 
 This step is done solely on the Photometry.jl side for both our `img_from` and `img_to` images, which Astroalign.jl calls with some reasonable defaults via [`Astroalign._photometry`](@ref).
 
 ```@example walkthrough
-# Used by both img_from and img_to
-phot_kwargs = let
-    box_size = Astroalign._compute_box_size(img_to)
-    (;
-        box_size,
-        ap_radius = 0.6 * first(box_size),
-        min_fwhm = box_size .÷ 5,
-        nsigma = 1.0,
-        f = Astroalign.PSF(),
-        N_max = 10,
-        use_fitpos = true,
-    )
-end
 
-phot_to, phot_to_params = Astroalign._photometry(img_to; phot_kwargs...)
-phot_from, phot_from_params = Astroalign._photometry(img_from; phot_kwargs...)
+phot_to, phot_to_params = Astroalign._photometry(img_to; opts_phot...)
+phot_from, phot_from_params = Astroalign._photometry(img_from; opts_phot...)
 ```
 
 This performs source extraction and source characterization of our images, storing the results in the `phot_from_params` and `phot_to_params` named tuples above. Here is a preview of the detected soures in each image:
@@ -347,14 +348,7 @@ println("Candidate triangle matches: $(size(correspondences, 4))")
 The largest mutually consistent set of correspondences ("inliers") is found via a RANSAC pass using [JuliaAstro/ConsensusFitting.jl](https://github.com/JuliaAstro/ConsensusFitting.jl) with [`Astroalign._ransac`](@ref):
 
 ```@example walkthrough
-ransac_kwargs = (;
-    scale = true,
-    ransac_threshold = 3.0,
-)
-
-fwd_tfm_initial, inlier_idxs_initial = Astroalign._ransac(correspondences;
-    ransac_kwargs...,
-)
+fwd_tfm_initial, inlier_idxs_initial = Astroalign._ransac(correspondences; opts_ransac...)
 
 println("Initial RANSAC inliers: $(length(inlier_idxs_initial)) / $(size(correspondences, 4))")
 ```
@@ -364,11 +358,7 @@ println("Initial RANSAC inliers: $(length(inlier_idxs_initial)) / $(size(corresp
 The transformation and inlier set from the previous step are successively refined via [`Astroalign._refine_transform`](@ref) using all detected control points, capturing previously missed inliers while dropping incorrect assignments:
 
 ```@example walkthrough
-tfm, inlier_idxs, point_map = Astroalign._refine_transform(
-    fwd_tfm_initial, inlier_idxs_initial, correspondences;
-        ransac_kwargs...,
-        final_iters = 3,
-)
+tfm, inlier_idxs, point_map = Astroalign._refine_transform(fwd_tfm_initial, inlier_idxs_initial, correspondences; opts_refinement...)
 ```
 
 For this example, all 10 initial inliers remain after refinement:
@@ -386,7 +376,7 @@ fig = plot_pair(img_from, img_to; titles = ["img_from", "img_to"])
 
 # Solution apertures
 sols = params_aligned.sols
-strokecolor = Makie.wong_colors()[1:length(sols)]
+strokecolor = Makie.categorical_colors(:tab10, length(sols))
 scatter!(fig.content[1], sols.x_from, sols.y_from; strokecolor)
 scatter!(fig.content[2], sols.x_to, sols.y_to; strokecolor)
 
