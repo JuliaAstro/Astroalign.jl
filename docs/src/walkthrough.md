@@ -226,12 +226,14 @@ println("RANSAC inliers: $n_inliers / $n_total ($(round(100*n_inliers/n_total; d
 
 The rest of this document will walk through how this is accomplished behind the scenes, and the different options that we can pass to [`align_frame`](@ref).
 
+!!! tip
+    Use [`find_transform`](@ref) to just compute the transformation without applying it to the image. This is useful for checking parameters beforehand or storing them for future analysis.
+
 ## Step 1: Identify control points
 
 This step is done solely on the Photometry.jl side for both our `img_from` and `img_to` images, which Astroalign.jl calls with some reasonable defaults via [`Astroalign._photometry`](@ref).
 
 ```@example walkthrough
-
 phot_to, phot_to_params = Astroalign._photometry(img_to; opts_phot...)
 phot_from, phot_from_params = Astroalign._photometry(img_from; opts_phot...)
 ```
@@ -290,7 +292,7 @@ inspect_psf(first(phot_to); colorrange = (0, 1), titles = ["Data", "Model"])
 !!! note
     PSF centers are relative to the aperture, while `xcenter` and `ycenter` are relative to the whole image. Astroalign.jl performs the necessary conversions from the former to the latter in [`Astroalign.to_subpixel`](@ref) before reporting the final fitted values.
 
-With out sources identified, we now turn to the next step in the alignment algorithm.
+With our sources identified, we now turn to the next step in the alignment algorithm.
 
 ## Step 2: Calculate invariants
 
