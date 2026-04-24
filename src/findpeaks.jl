@@ -54,7 +54,6 @@ function fit_psf(img_ap, p)
 
     fwhm = p.params.fwhm
 
-    # TODO: Generalize to other PSFs
     params = (; x, y, fwhm)
 
     # Fit
