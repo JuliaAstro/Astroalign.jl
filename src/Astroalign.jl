@@ -18,9 +18,9 @@ using TypedTables: Table
 
 export align_frame, find_transform
 
+include("psf.jl")
 include("findpeaks.jl")
 include("register.jl")
-include("psf.jl")
 include("warp.jl")
 
 end # module
