@@ -18,6 +18,7 @@ using TypedTables: Table
 
 export align_frame, find_transform
 
+include("psf.jl")
 include("findpeaks.jl")
 include("register.jl")
 include("warp.jl")
