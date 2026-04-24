@@ -152,7 +152,7 @@ function find_transform(img_from, img_to;
     # Note that _triangle_distfn expects a from => to transform.
     tfm, inlier_idxs, point_map = _refine_transform(fwd_tfm_initial, inlier_idxs_initial, correspondences; final_iters, scale, ransac_threshold)
 
-    return tfm, (; point_map, correspondences, inlier_idxs, C_from, ℳ_from, C_to, ℳ_to, phot_from_params, phot_to_params)
+    return tfm, (; point_map, correspondences, inlier_idxs, C_from, ℳ_from, C_to, ℳ_to, phot_from, phot_to, phot_from_params, phot_to_params)
 end
 
 get_phot(img::AbstractMatrix; kwargs...) = _photometry(img; kwargs...)

@@ -108,6 +108,8 @@ end
         :ℳ_from,
         :C_to,
         :ℳ_to,
+        :phot_from,
+        :phot_to,
         :phot_from_params,
         :phot_to_params,
     )
