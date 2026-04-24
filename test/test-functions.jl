@@ -100,6 +100,5 @@ end
         :ℳ_to,
         :phot_from_params,
         :phot_to_params,
-        :sols,
     )
 end

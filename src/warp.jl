@@ -89,19 +89,6 @@ function align_frame(img_from, img_to;
     # Note that _triangle_distfn expects a from => to transform.
     tfm, inlier_idxs, point_map = _refine_transform(fwd_tfm_initial, inlier_idxs_initial, correspondences; final_iters, scale, ransac_threshold)
 
-    # Store corresponding apertures. Convenient for debugging.
-    # TODO: Will probably want to generalize this for
-    # https://github.com/JuliaAstro/Astroalign.jl/issues/4
-    # or just return bare coords.
-    sols = map(point_map) do sol
-        (
-            x_from = sol.first[1],
-            y_from = sol.first[2],
-            x_to = sol.second[1],
-            y_to = sol.second[2],
-        )
-    end |> Table
-
     # Step 6: Apply the transform (from => to)
     warp_img = warp_function(img_from, inv(tfm), axes(img_to))
 
@@ -118,7 +105,6 @@ function align_frame(img_from, img_to;
             ℳ_to,
             phot_from_params,
             phot_to_params,
-            sols,
         )
     )
 end

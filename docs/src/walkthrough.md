@@ -375,10 +375,10 @@ The matched control points in both images are shown below:
 fig = plot_pair(img_from, img_to; titles = ["img_from", "img_to"])
 
 # Solution apertures
-sols = params_aligned.sols
-strokecolor = Makie.categorical_colors(:tab10, length(sols))
-scatter!(fig.content[1], sols.x_from, sols.y_from; strokecolor)
-scatter!(fig.content[2], sols.x_to, sols.y_to; strokecolor)
+x_from, y_from, x_to, y_to = (getindex.(f.(point_map), i) for f in (first, last) for i in (1, 2))
+strokecolor = Makie.categorical_colors(:tab10, length(x_from))
+scatter!(fig.content[1], x_from, y_from; strokecolor)
+scatter!(fig.content[2], x_to, y_to; strokecolor)
 
 fig
 ```
