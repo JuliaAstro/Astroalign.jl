@@ -38,10 +38,10 @@ This is achieved via the following algorithm:
 
 # Parameters
 
-- `box_size`: The size of the grid cells (in pixels) used to extract candidate point sources to use for alignment. Defaults to a tenth of the greatest common denominator of the dimensions of `img_to`. See [Photometry.jl > Source Detection Algorithms](@extref Photometry Source-Detection-Algorithms) for more.
-- `ap_radius`: The radius of the apertures (in pixel) to place around each point source. Defaults to 60% of `first(box_size)`. See [Photometry.jl > Aperture Photometry](@extref Photometry Aperture-Photometry) for more.
-- `f`: The function to compute within each aperture. Defaults to a 2D Gaussian fitted to the aperture center. See the [Source characterization](https://juliaastro.org/Astroalign.jl/notebook.html#Source-characterization) section of the accompanying Pluto.jl notebook for more.
-- `min_fwhm`: The minimum FWHM (in pixels) that an extracted point source must have to be considered as a control point. Defaults to a fifth of the width of the first image. See [PSFModels.jl > Fitting data](@extref PSFModels Fitting-data) for more. Set to `nothing` to use all identified sources as control points.
+- `box_size`: The size of the grid cells (in pixels) used to extract candidate point sources to use for alignment. Defaults to (3, 3) pixels. See [Photometry.jl > Source Detection Algorithms](@extref Photometry Source-Detection-Algorithms) for more.
+- `ap_radius`: The radius of the apertures (in pixel) to place around each point source. Defaults to 9 pixels. See [Photometry.jl > Aperture Photometry](@extref Photometry Aperture-Photometry) for more.
+- `f`: The function to compute within each aperture. Defaults to a 2D Gaussian fitted to the aperture center, with default FWHM of 1.5 pixels. See the [Source characterization](https://juliaastro.org/Astroalign.jl/notebook.html#Source-characterization) section of the accompanying Pluto.jl notebook for more.
+- `min_fwhm`: The minimum FWHM (in pixels) that an extracted point source must have to be considered as a control point. Defaults to 2 pixels. See [PSFModels.jl > Fitting data](@extref PSFModels Fitting-data) for more. Set to `nothing` to use all identified sources as control points.
 - `nsigma`: The number of standard deviations above the estimated background that a source must be to be considered as a control point. Defaults to 1. See [Photometry.jl > Source Detection Algorithms](@extref Photometry Source-Detection-Algorithms) for more.
 - `N_max`: Maximal Number of (brightest) sources to consider for alignment (default is 10).
 - `scale`: If `true`, fit a similarity transformation (rotation + isotropic scale + translation) instead of a rigid transformation (rotation + translation only). Defaults to `false`.
