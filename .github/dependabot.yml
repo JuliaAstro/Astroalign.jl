@@ -14,4 +14,4 @@ updates:
         patterns:
           - "*"
     ignore:
-      - dependency-name: "Photometry" # Ignore package itself
+      - dependency-name: "Astroalign" # Ignore package itself
