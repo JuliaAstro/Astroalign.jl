@@ -203,5 +203,5 @@ function _triangle_distfn(M_candidates, x, t)
         end
     end
 
-    return best_inliers, best_M
+    return (inliers = best_inliers, model = best_M)
 end
