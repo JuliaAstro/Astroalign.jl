@@ -31,13 +31,20 @@ Alignment algorithm:
 """
 function align_frame(img_from, img_to; warp_function = warp, kwargs...)
     # Steps 1 - 5
-    tfm, tfm_params = find_transform(img_from, img_to; kwargs...)
+    tfm, _ = find_transform(img_from, img_to; kwargs...)
 
     # Step 6: Apply the transform (from => to)
-    warp_img = warp_function(img_from, inv(tfm), axes(img_to))
+    warp_img = apply_transform(tfm, img_from, img_to; warp_function = warp)
 
-    return warp_img, (; tfm, tfm_params...)
+    return warp_img
 end
+
+"""
+    apply_transform(tfm, img_from, img_to; warp_function = warp)
+
+Apply transformation `tfm` to `img_from`, keeping axes consistent with `img_to`. `tfm` is typically supplied by [`find_transform`](@ref), which is automatically computed internally by [`align_frame`](@ref).
+"""
+apply_transform(tfm, img_from, img_to; warp_function = warp) = warp_function(img_from, inv(tfm), axes(img_to))
 
 """
     _ransac(correspondences; scale, ransac_threshold)
@@ -92,6 +99,8 @@ end
 Compute the transformation needed to align `img_from` onto `img_to`, assuming both images are related via a rigid
 (or similarity, when `scale = true`) transformation. Automatically called by [`align_frame`](@ref).
 
+If `img_from` or `img_to` is instead passed as a list of (x, y) coordinates for the given sources, then the photometry step will be skipped for that image.
+
 # Parameters
 
 - `box_size`: The size of the grid cells (in pixels) used to extract candidate point sources to use for alignment. Defaults to (3, 3) pixels. See [Photometry.jl > Source Detection Algorithms](@extref Photometry Source-Detection-Algorithms) for more.
@@ -118,8 +127,8 @@ function find_transform(img_from, img_to;
     final_iters = 3,
 )
     # Step 1: Identify control points
-    phot_from, phot_from_params = _photometry(img_from; box_size, ap_radius, f, min_fwhm, nsigma, N_max, use_fitpos)
-    phot_to, phot_to_params = _photometry(img_to; box_size, ap_radius, f, min_fwhm, nsigma, N_max, use_fitpos)
+    phot_from, phot_from_params = get_phot(img_from; box_size, ap_radius, f, min_fwhm, nsigma, N_max, use_fitpos)
+    phot_to, phot_to_params = get_phot(img_to; box_size, ap_radius, f, min_fwhm, nsigma, N_max, use_fitpos)
 
     # Step 2: Calculate invariants
     C_from, ℳ_from = _triangle_invariants(phot_from)
@@ -143,5 +152,8 @@ function find_transform(img_from, img_to;
     # Note that _triangle_distfn expects a from => to transform.
     tfm, inlier_idxs, point_map = _refine_transform(fwd_tfm_initial, inlier_idxs_initial, correspondences; final_iters, scale, ransac_threshold)
 
-    return tfm, (; point_map, correspondences, inlier_idxs, C_from, ℳ_from, C_to, ℳ_to, phot_from_params, phot_to_params)
+    return tfm, (; point_map, correspondences, inlier_idxs, C_from, ℳ_from, C_to, ℳ_to, phot_from, phot_to, phot_from_params, phot_to_params)
 end
+
+get_phot(img::AbstractMatrix; kwargs...) = _photometry(img; kwargs...)
+get_phot(coords::AbstractVector; kwargs...) = Table(; xcenter = first.(coords), ycenter = last.(coords)), ()

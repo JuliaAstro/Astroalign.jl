@@ -33,16 +33,26 @@ end
     img_to = Data.img_to
     img_from = Data.img_from
 
-    img_aligned, params = align_frame(img_from, img_to; box_size = 1, ap_radius = 1, min_fwhm = (0.1, 0.1))
+    img_aligned = align_frame(img_from, img_to; box_size = 1, ap_radius = 1, min_fwhm = (0.1, 0.1))
 
     @test img_aligned ≈ img_to
+end
+
+@testset "find_transform" begin
+    using Astroalign: find_transform
+
+    img_to = Data.img_to
+    img_from = [(9, 9), (5, 6), (9, 6)]
+
+    tfm, params = find_transform(img_from, img_to; box_size = 1, ap_radius = 1, min_fwhm = (0.1, 0.1))
+
     @test params.point_map == [
         [9.0, 9.0] => [6.0, 9.0],
         [5.0, 6.0] => [2.0, 6.0],
         [9.0, 6.0] => [6.0, 6.0]
     ]
-    @test params.tfm.linear ≈ [1 0; 0 1]
-    @test params.tfm.translation ≈ [-3.0, 0.0]
+    @test tfm.linear ≈ [1 0; 0 1]
+    @test tfm.translation ≈ [-3.0, 0.0]
 end
 
 @testset "photometry" begin
@@ -76,21 +86,21 @@ end
 end
 
 @testset "api"  begin
-    import Astroalign
+    using Astroalign: PSF, find_transform, apply_transform
 
     img_to = Data.img_to
     img_from = Data.img_from
 
-    img_aligned, p = Astroalign.align_frame(img_to, img_from;
+    tfm, p = find_transform(img_to, img_from;
         box_size = 1,
         ap_radius = 1,
         min_fwhm = 0.1,
-        f = Astroalign.PSF(params = (x = 6, y = 6, fwhm = 0.2))
+        f = PSF(params = (x = 6, y = 6, fwhm = 0.2))
     )
+    img_aligned = apply_transform(tfm, img_from, img_to)
 
     @test img_aligned isa AbstractMatrix
     @test propertynames(p) == (
-        :tfm,
         :point_map,
         :correspondences,
         :inlier_idxs,
@@ -98,6 +108,8 @@ end
         :ℳ_from,
         :C_to,
         :ℳ_to,
+        :phot_from,
+        :phot_to,
         :phot_from_params,
         :phot_to_params,
     )

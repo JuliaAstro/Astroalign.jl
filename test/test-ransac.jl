@@ -78,10 +78,10 @@ end
     # All coordinates are in Astroalign's native (xcenter=row, ycenter=col) convention.
     # Stars are rendered with PSFModels.gaussian(row_eval, col_eval; x=row_star, y=col_star).
     # The forward transform T_fwd maps img_to star (row, col) positions to img_from positions.
-    # align_frame recovers this as params.tfm (backward: img_to → img_from), so:
-    #   params.tfm.linear     ≈ R_fwd
-    #   params.tfm.translation ≈ t_fwd
-    using Astroalign: align_frame
+    # find_transform recovers this as tfm (backward: img_to → img_from), so:
+    #   tfm.linear     ≈ R_fwd
+    #   tfm.translation ≈ t_fwd
+    using Astroalign: find_transform, apply_transform
     using PSFModels: gaussian
     using CoordinateTransformations: AffineMap
     using LinearAlgebra: I, norm, dot
@@ -119,12 +119,13 @@ end
     img_to   = render_stars(stars_to_rc,   img_size, fwhm)
     img_from = render_stars(stars_from_rc, img_size, fwhm)
 
-    img_aligned, params = align_frame(img_from, img_to;
+    tfm, params = find_transform(img_from, img_to;
         scale            = false,
         min_fwhm         = (0.5, 0.5),
         N_max            = nstars,
         ransac_threshold = 2.0,
     )
+    img_aligned = apply_transform(tfm, img_from, img_to)
 
     # Test uniqueness of correspondences
     for i in axes(params.correspondences, 4)
@@ -141,8 +142,8 @@ end
     end
 
     # Recovered forward transform (img_from → img_to) should match T_fwd
-    @test params.tfm.linear ≈ R_fwd  atol=0.01
-    @test params.tfm.translation ≈ t_fwd  atol=1.0
+    @test tfm.linear ≈ R_fwd  atol=0.01
+    @test tfm.translation ≈ t_fwd  atol=1.0
 
     # RANSAC should utilise most of the stars as inliers
     @test length(params.inlier_idxs) ≥ nstars
@@ -160,7 +161,7 @@ end
 end
 
 @testset "similarity alignment (scale=true) on synthetic images" begin
-    using Astroalign: align_frame
+    using Astroalign: find_transform, apply_transform
     using PSFModels: gaussian
     using CoordinateTransformations: AffineMap
     using LinearAlgebra: I, norm
@@ -193,15 +194,16 @@ end
     img_to   = render_stars(stars_to_rc,   img_size, fwhm)
     img_from = render_stars(stars_from_rc, img_size, fwhm)
 
-    img_aligned, params = align_frame(img_from, img_to;
+    tfm, params = find_transform(img_from, img_to;
         scale            = true,
         min_fwhm         = (0.5, 0.5),
         N_max            = nstars,
         ransac_threshold = 2.0,
     )
+    img_aligned = apply_transform(tfm, img_from, img_to)
 
-    @test params.tfm.linear ≈ M_fwd  atol=0.02
-    @test params.tfm.translation ≈ t_fwd  atol=1.0
+    @test tfm.linear ≈ M_fwd  atol=0.02
+    @test tfm.translation ≈ t_fwd  atol=1.0
     @test length(params.inlier_idxs) ≥ nstars
 end
 
@@ -217,7 +219,7 @@ end
     #
     # All 50 stars are place in master [820:1180, 820:1180] so they lie
     # inside both sub-images regardless of the 22° rotation.
-    using Astroalign: align_frame
+    using Astroalign: find_transform, apply_transform
     using PSFModels: gaussian
     using CoordinateTransformations: AffineMap, LinearMap, Translation
     using ImageTransformations: warp
@@ -268,16 +270,17 @@ end
     tfm2_back  = Translation(master_ctr) ∘ LinearMap(R_rot) ∘ Translation(-sub_ctr)
     img_from   = warp(master, tfm2_back, (1:512, 1:512))
 
-    img_aligned, params = align_frame(img_from, img_to;
+    tfm, params = find_transform(img_from, img_to;
         scale            = false,
         min_fwhm         = (1.0, 1.0),
         N_max            = 20,
         ransac_threshold = 5.0,
     )
+    img_aligned = apply_transform(tfm, img_from, img_to)
 
     # params.tfm maps img_from → img_to in (row, col) space.
     # tfm = inv(tfm2_back) ∘ tfm1_back → linear part ≈ R_rot' = R(-22°)
-    @test params.tfm.linear ≈ R_rot  atol=0.02
+    @test tfm.linear ≈ R_rot  atol=0.02
 
     @test length(params.inlier_idxs) ≥ 6
 
