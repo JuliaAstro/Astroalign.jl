@@ -38,6 +38,21 @@ end
     @test img_aligned ≈ img_to
 end
 
+@testset "align_frames (vector input reuses phot_to)" begin
+    using Astroalign: align_frames
+
+    img_to = Data.img_to
+    img_from = Data.img_from
+    opts = (; box_size = 1, ap_radius = 1, min_fwhm = (0.1, 0.1))
+
+    expected = align_frames(img_from, img_to; opts...)
+    aligned = align_frames([img_from, img_from, img_from], img_to; opts...)
+
+    @test length(aligned) == 3
+    @test all(a -> a ≈ expected, aligned)
+    @test all(a -> a ≈ img_to, aligned)
+end
+
 @testset "find_transform" begin
     using Astroalign: find_transform
 
@@ -53,6 +68,30 @@ end
     ]
     @test tfm.linear ≈ [1 0; 0 1]
     @test tfm.translation ≈ [-3.0, 0.0]
+end
+
+@testset "find_transform reuses precomputed phot" begin
+    using Astroalign: find_transform
+
+    img_to = Data.img_to
+    img_from = Data.img_from
+    opts = (; box_size = 1, ap_radius = 1, min_fwhm = (0.1, 0.1))
+
+    tfm_ref, params_ref = find_transform(img_from, img_to; opts...)
+
+    # Passing the precomputed phot_to Table in place of img_to must yield the
+    # same transform without rerunning photometry on img_to.
+    tfm_reuse, params_reuse = find_transform(img_from, params_ref.phot_to; opts...)
+    @test tfm_reuse.linear ≈ tfm_ref.linear
+    @test tfm_reuse.translation ≈ tfm_ref.translation
+    @test params_reuse.phot_to === params_ref.phot_to
+    @test params_reuse.phot_to_params == ()
+
+    # Symmetric: precomputed phot_from also works.
+    tfm_both, params_both = find_transform(params_ref.phot_from, params_ref.phot_to; opts...)
+    @test tfm_both.linear ≈ tfm_ref.linear
+    @test tfm_both.translation ≈ tfm_ref.translation
+    @test params_both.phot_from_params == ()
 end
 
 @testset "photometry" begin
