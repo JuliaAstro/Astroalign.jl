@@ -154,7 +154,7 @@ end
 
 ## Usage
 
-We now use the exported [`align_frame`](@ref) function to align our image:
+We now use the exported [`align_frames`](@ref) function to align our image:
 
 ```@example walkthrough
 # Available options
@@ -171,7 +171,7 @@ opts_ransac = (; scale = true, ransac_threshold = 3.0);
 opts_refinement = (; final_iters = 3, opts_ransac...)
 
 # Align
-arr_from_aligned = align_frame(img_from, img_to; opts_phot..., opts_refinement...);
+arr_from_aligned = align_frames(img_from, img_to; opts_phot..., opts_refinement...);
 
 # Visualize
 plot_pair(arr_from_aligned, img_to; titles = ["img_from (aligned)", "img_to"])
@@ -188,7 +188,7 @@ tfm_aligned, params_aligned = find_transform(img_from, img_to; opts_phot..., opt
 ```
 
 !!! tip
-    This can be used in conjunction with [`apply_transform`](@ref) to apply the transformation found. This is what [`align_frame`](@ref) calls under the hood.
+    This can be used in conjunction with [`apply_transform`](@ref) to apply the transformation found. This is what [`align_frames`](@ref) calls under the hood.
 
 Decomposing it into scale (`S`), rotation (`R`), and translation (`T`) components then gives:
 
@@ -227,7 +227,7 @@ n_total   = size(params_aligned.correspondences, 4)
 println("RANSAC inliers: $n_inliers / $n_total ($(round(100*n_inliers/n_total; digits = 1))%)")
 ```
 
-The rest of this document will walk through how this is accomplished behind the scenes, and the different options that we can pass to [`align_frame`](@ref).
+The rest of this document will walk through how this is accomplished behind the scenes, and the different options that we can pass to [`align_frames`](@ref).
 
 ## Step 1: Identify control points
 
@@ -296,7 +296,7 @@ With our sources identified, we now turn to the next step in the alignment algor
 
 ## Step 2: Calculate invariants
 
-This is done internally in [`align_frame`](@ref), but the invariants ``\mathscr M_i`` can also be exposed with [`Astroalign._triangle_invariants`](@ref).
+This is done internally in [`align_frames`](@ref), but the invariants ``\mathscr M_i`` can also be exposed with [`Astroalign._triangle_invariants`](@ref).
 
 ```@example walkthrough
 C_to, ℳ_to = Astroalign._triangle_invariants(phot_to)

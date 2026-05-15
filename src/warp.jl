@@ -1,5 +1,5 @@
 """
-    function align_frame(img_from, img_to; [warp_function], kwargs...)
+    function align_frames(img_from, img_to; [warp_function], kwargs...)
 
 Align `img_from` onto `img_to`.
 
@@ -29,7 +29,7 @@ Alignment algorithm:
    applied to all vertex pairs from all inlier triangle matches.
 6. Finally, warp `img_from` to the coordinates of `img_to`.
 """
-function align_frame(img_from, img_to; warp_function = warp, kwargs...)
+function align_frames(img_from, img_to; warp_function = warp, kwargs...)
     # Steps 1 - 5
     tfm, _ = find_transform(img_from, img_to; kwargs...)
 
@@ -42,7 +42,7 @@ end
 """
     apply_transform(tfm, img_from, img_to; warp_function = warp)
 
-Apply transformation `tfm` to `img_from`, keeping axes consistent with `img_to`. `tfm` is typically supplied by [`find_transform`](@ref), which is automatically computed internally by [`align_frame`](@ref).
+Apply transformation `tfm` to `img_from`, keeping axes consistent with `img_to`. `tfm` is typically supplied by [`find_transform`](@ref), which is automatically computed internally by [`align_frames`](@ref).
 """
 apply_transform(tfm, img_from, img_to; warp_function = warp) = warp_function(img_from, inv(tfm), axes(img_to))
 
@@ -97,7 +97,7 @@ end
     )
 
 Compute the transformation needed to align `img_from` onto `img_to`, assuming both images are related via a rigid
-(or similarity, when `scale = true`) transformation. Automatically called by [`align_frame`](@ref).
+(or similarity, when `scale = true`) transformation. Automatically called by [`align_frames`](@ref).
 
 If `img_from` or `img_to` is instead passed as a list of (x, y) coordinates for the given sources, then the photometry step will be skipped for that image.
 
@@ -138,7 +138,7 @@ function find_transform(img_from, img_to;
     correspondences = _build_correspondences(C_from, ℳ_from, C_to, ℳ_to)
 
     size(correspondences, 4) < 1 &&
-        error("align_frame: not enough candidate correspondences ($(size(correspondences, 4))); " *
+        error("align_frames: not enough candidate correspondences ($(size(correspondences, 4))); " *
               "ensure both images contain at least 3 detectable point sources")
 
     # Step 4: RANSAC on triangle matches to find the largest set of mutually consistent correspondences (inliers)

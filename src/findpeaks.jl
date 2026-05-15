@@ -65,9 +65,9 @@ end
 """
     _photometry(img; box_size, ap_radius, min_fwhm, nsigma, f, N_max, use_fitpos)
 
-Internal function used by [`align_frame`](@ref). Calls to [`Photometry.Aperture.photometry`](@extref) with reasonable defaults.
+Internal function used by [`align_frames`](@ref). Calls to [`Photometry.Aperture.photometry`](@extref) with reasonable defaults.
 
-See [`align_frame`](@ref) for keyword arguments.
+See [`align_frames`](@ref) for keyword arguments.
 """
 function _photometry(img; box_size, ap_radius, min_fwhm, nsigma, f, N_max, use_fitpos)
     # Sources, background subtracted image, background

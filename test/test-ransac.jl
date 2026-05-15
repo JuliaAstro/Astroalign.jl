@@ -209,7 +209,7 @@ end
 
 @testset "RANSAC: two sub-images from a 2000 × 2000 master field" begin
     # Two 512 × 512 sub-images are extracted from a large synthetic field via
-    # ImageTransformations.warp with known backward transforms.  align_frame
+    # ImageTransformations.warp with known backward transforms.  align_frames
     # must recover the relative rotation to better than ≈1° and produce a
     # strongly-correlated aligned image.
     #
