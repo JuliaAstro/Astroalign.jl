@@ -27,13 +27,13 @@ end
     @test errs == zero(subt)
 end
 
-@testset "align_frame" begin
-    using Astroalign: align_frame
+@testset "align_frames" begin
+    using Astroalign: align_frames
 
     img_to = Data.img_to
     img_from = Data.img_from
 
-    img_aligned = align_frame(img_from, img_to; box_size = 1, ap_radius = 1, min_fwhm = (0.1, 0.1))
+    img_aligned = align_frames(img_from, img_to; box_size = 1, ap_radius = 1, min_fwhm = (0.1, 0.1))
 
     @test img_aligned ≈ img_to
 end
