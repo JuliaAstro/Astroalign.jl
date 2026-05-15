@@ -53,6 +53,21 @@ end
     @test all(a -> a ≈ img_to, aligned)
 end
 
+@testset "align_frames (single-arg convenience: first is reference)" begin
+    using Astroalign: align_frames
+
+    img_to = Data.img_to
+    img_from = Data.img_from
+    opts = (; box_size = 1, ap_radius = 1, min_fwhm = (0.1, 0.1))
+
+    expected = align_frames([img_from, img_from], img_to; opts...)
+    aligned = align_frames([img_to, img_from, img_from]; opts...)
+
+    @test length(aligned) == 2
+    @test aligned[1] ≈ expected[1]
+    @test aligned[2] ≈ expected[2]
+end
+
 @testset "find_transform" begin
     using Astroalign: find_transform
 

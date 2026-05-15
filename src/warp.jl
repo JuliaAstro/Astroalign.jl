@@ -62,6 +62,14 @@ function align_frames(img_froms::AbstractVector{<:AbstractArray}, img_to; warp_f
 end
 
 """
+    align_frames(imgs::AbstractVector{<:AbstractArray}; kwargs...)
+
+Convenience method that takes the first image of `imgs` as the reference (`img_to`) and aligns the remaining `length(imgs) - 1` images to it. Equivalent to `align_frames(@view(imgs[2:end]), first(imgs); kwargs...)`.
+"""
+align_frames(imgs::AbstractVector{<:AbstractArray}; kwargs...) =
+    align_frames(@view(imgs[2:end]), first(imgs); kwargs...)
+
+"""
     apply_transform(tfm, img_from, img_to; warp_function = warp)
 
 Apply transformation `tfm` to `img_from`, keeping axes consistent with `img_to`. `tfm` is typically supplied by [`find_transform`](@ref), which is automatically computed internally by [`align_frames`](@ref).
