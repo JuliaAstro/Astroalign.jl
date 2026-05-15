@@ -34,7 +34,7 @@ function align_frames(img_from, img_to; warp_function = warp, kwargs...)
     tfm, _ = find_transform(img_from, img_to; kwargs...)
 
     # Step 6: Apply the transform (from => to)
-    warp_img = apply_transform(tfm, img_from, img_to; warp_function = warp)
+    warp_img = apply_transform(tfm, img_from, img_to; warp_function)
 
     return warp_img
 end
