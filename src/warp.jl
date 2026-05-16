@@ -129,7 +129,7 @@ end
 Compute the transformation needed to align `img_from` onto `img_to`, assuming both images are related via a rigid
 (or similarity, when `scale = true`) transformation. Automatically called by [`align_frames`](@ref).
 
-If `img_from` or `img_to` is instead passed as a list of (x, y) coordinates for the given sources, then the photometry step will be skipped for that image. A previously computed photometry [`Table`](https://typedtables.juliadata.org/stable/man/reference/#TypedTables.Table) (e.g. extracted from a prior `find_transform` result via `params.phot_to`) can also be passed in place of the image, which is useful when aligning a series of frames to a single reference image without recomputing its photometry on every call.
+If `img_from` or `img_to` is instead passed as a vector of `(x, y)` coordinates for the given sources, then the photometry step will be skipped for that image. This allows use of precomputed coordinate lists. A previously computed photometry [`Table`](https://typedtables.juliadata.org/stable/man/reference/#TypedTables.Table) (e.g. extracted from a prior `find_transform` result via `params.phot_to`) can also be passed in place of either image, which is useful when aligning a series of frames to a single reference image without recomputing its photometry on every call.
 
 # Parameters
 
