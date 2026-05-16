@@ -34,10 +34,40 @@ function align_frames(img_from, img_to; warp_function = warp, kwargs...)
     tfm, _ = find_transform(img_from, img_to; kwargs...)
 
     # Step 6: Apply the transform (from => to)
-    warp_img = apply_transform(tfm, img_from, img_to; warp_function = warp)
+    warp_img = apply_transform(tfm, img_from, img_to; warp_function)
 
     return warp_img
 end
+
+"""
+    align_frames(img_froms::AbstractVector{<:AbstractArray}, img_to; [warp_function], kwargs...)
+
+Align each image in `img_froms` to the single reference image `img_to`.
+
+The photometry on `img_to` is computed once (during the alignment of the first frame) and reused for every subsequent frame, which is substantially cheaper than invoking the scalar [`align_frames`](@ref) method once per `img_from`.
+
+Returns a vector of warped images, one per element of `img_froms`. Accepts the same keyword arguments as the scalar method.
+"""
+function align_frames(img_froms::AbstractVector{<:AbstractArray}, img_to; warp_function = warp, kwargs...)
+    # Bootstrap: solve the first frame normally so we can capture `phot_to`
+    # and reuse it (via the precomputed-Table `get_phot` dispatch) on every
+    # subsequent frame without redoing photometry on `img_to`.
+    tfm_first, params_ref = find_transform(first(img_froms), img_to; kwargs...)
+    phot_to = params_ref.phot_to
+
+    map(enumerate(img_froms)) do (i, img_from)
+        tfm = i == 1 ? tfm_first : first(find_transform(img_from, phot_to; kwargs...))
+        apply_transform(tfm, img_from, img_to; warp_function)
+    end
+end
+
+"""
+    align_frames(imgs::AbstractVector{<:AbstractArray}; kwargs...)
+
+Convenience method that takes the first image of `imgs` as the reference (`img_to`) and aligns the remaining `length(imgs) - 1` images to it. Equivalent to `align_frames(@view(imgs[2:end]), first(imgs); kwargs...)`.
+"""
+align_frames(imgs::AbstractVector{<:AbstractArray}; kwargs...) =
+    align_frames(@view(imgs[2:end]), first(imgs); kwargs...)
 
 """
     apply_transform(tfm, img_from, img_to; warp_function = warp)
@@ -99,7 +129,7 @@ end
 Compute the transformation needed to align `img_from` onto `img_to`, assuming both images are related via a rigid
 (or similarity, when `scale = true`) transformation. Automatically called by [`align_frames`](@ref).
 
-If `img_from` or `img_to` is instead passed as a list of (x, y) coordinates for the given sources, then the photometry step will be skipped for that image.
+If `img_from` or `img_to` is instead passed as a vector of `(x, y)` coordinates for the given sources, then the photometry step will be skipped for that image. This allows use of precomputed coordinate lists. A previously computed photometry [`Table`](https://typedtables.juliadata.org/stable/man/reference/#TypedTables.Table) (e.g. extracted from a prior `find_transform` result via `params.phot_to`) can also be passed in place of either image, which is useful when aligning a series of frames to a single reference image without recomputing its photometry on every call.
 
 # Parameters
 
@@ -157,3 +187,4 @@ end
 
 get_phot(img::AbstractMatrix; kwargs...) = _photometry(img; kwargs...)
 get_phot(coords::AbstractVector; kwargs...) = Table(; xcenter = first.(coords), ycenter = last.(coords)), ()
+get_phot(phot::Table; kwargs...) = phot, ()
