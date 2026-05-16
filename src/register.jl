@@ -4,16 +4,41 @@
 Returns all combinations (``C``) of three candidate point sources from the table of sources `phot` returned by [`Photometry.Aperture.photometry`](@extref), and the computed invariant ``\\mathscr M`` for each according to Eq. 3 from [_Beroiz, M., Cabral, J. B., & Sanchez, B. (2020)_](https://ui.adsabs.harvard.edu/abs/2020A%26C....3200384B/abstract).
 """
 function _triangle_invariants(phot)
-    C = combinations(phot, 3)
-    ℳ = map(C) do (pa, pb, pc)
-        a, b, c = (
-            (pa.ycenter, pa.xcenter),
-            (pb.ycenter, pb.xcenter),
-            (pc.ycenter, pc.xcenter),
-        )
-        Ls = sort!([euclidean(a, b), euclidean(b, c), euclidean(a, c)])
-        (Ls[3] / Ls[2], Ls[2] / Ls[1])
-    end |> stack
+    @inline dist2d(a, b) = sqrt((a[1] - b[1])^2 + (a[2] - b[2])^2)
+    @inline function sort3(a, b, c)
+        a, b = minmax(a, b)
+        b, c = minmax(b, c)
+        a, b = minmax(a, b)
+        return a, b, c  # sorted ascending: small, mid, large
+    end
+    xs = phot.xcenter
+    ys = phot.ycenter
+    n = length(phot)
+    ntriangles = binomial(n, 3)
+    ℳ = Matrix{Float64}(undef, 2, ntriangles)
+    C = Vector{NTuple{3,Int}}(undef, ntriangles)
+
+    # Enumerate all combinations(1:n,3) triangles via nested loops over strictly increasing index triples
+    # (i < j < l), storing results in pre-allocated C and ℳ indexed by the flat counter k.
+    k = 0
+    for i in 1:n
+        yi, xi = ys[i], xs[i]
+        for j in i+1:n
+            yj, xj = ys[j], xs[j]
+            lab = dist2d((yi, xi), (yj, xj))
+            for l in j+1:n
+                k += 1
+                yl, xl = ys[l], xs[l]
+                lbc = dist2d((yj, xj), (yl, xl))
+                lac = dist2d((yi, xi), (yl, xl))
+                small, mid, large = sort3(lab, lbc, lac)
+                ℳ[1, k] = large / mid
+                ℳ[2, k] = mid / small
+                C[k] = (i, j, l)
+            end
+        end
+    end
+
     return C, ℳ
 end
 
