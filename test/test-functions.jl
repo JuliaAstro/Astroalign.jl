@@ -1,14 +1,27 @@
 @testset "triangle_invariants" begin
-    using Astroalign: _triangle_invariants
+    using Astroalign: _triangle_invariants, _canonical_vertex_order
+    using TypedTables: Table
+
+    # This signature computes the square distances 
+    function _canonical_vertex_order_test(i, j, l, xs, ys)
+        d2_ji = (xs[j] - xs[i])^2 + (ys[j] - ys[i])^2
+        d2_lj = (xs[l] - xs[j])^2 + (ys[l] - ys[j])^2
+        d2_li = (xs[l] - xs[i])^2 + (ys[l] - ys[i])^2
+        return _canonical_vertex_order(i, j, l, d2_ji, d2_lj, d2_li, xs, ys)
+    end
 
     points = Data.points_to
     combinations = Data.combinations_to
     invariants = Data.invariants
 
-    C, ℳ = _triangle_invariants(points)
-
+    # We always call _triangle_invariants with a Table, not a Vector{NamedTuple},
+    # so we test that the output is correct for the Table input
+    points_table = Table(points)
+    C, ℳ = _triangle_invariants(points_table)
     @test length(C) == 1
-    @test collect(C) == combinations
+    # _canonical_vertex_order is called within _triangle_invariants, so we test that the 
+    # output C is consistent with the expected canonical vertex order for the given points and combinations
+    @test C == [_canonical_vertex_order_test(c..., points_table.xcenter, points_table.ycenter) for c in combinations]
     @test ℳ == invariants
 end
 

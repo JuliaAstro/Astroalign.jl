@@ -165,7 +165,7 @@ function find_transform(img_from, img_to;
     C_to, ℳ_to = _triangle_invariants(phot_to)
 
     # Step 3: Build candidate correspondence pool via nearest neighbors triangle matching
-    correspondences = _build_correspondences(C_from, ℳ_from, C_to, ℳ_to)
+    correspondences = _build_correspondences(C_from, ℳ_from, phot_from, C_to, ℳ_to, phot_to)
 
     size(correspondences, 4) < 1 &&
         error("align_frames: not enough candidate correspondences ($(size(correspondences, 4))); " *

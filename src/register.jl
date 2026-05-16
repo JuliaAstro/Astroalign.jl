@@ -4,7 +4,6 @@
 Returns all combinations (``C``) of three candidate point sources from the table of sources `phot` returned by [`Photometry.Aperture.photometry`](@extref), and the computed invariant ``\\mathscr M`` for each according to Eq. 3 from [_Beroiz, M., Cabral, J. B., & Sanchez, B. (2020)_](https://ui.adsabs.harvard.edu/abs/2020A%26C....3200384B/abstract).
 """
 function _triangle_invariants(phot)
-    @inline dist2d(a, b) = sqrt((a[1] - b[1])^2 + (a[2] - b[2])^2)
     @inline function sort3(a, b, c)
         a, b = minmax(a, b)
         b, c = minmax(b, c)
@@ -21,20 +20,24 @@ function _triangle_invariants(phot)
     # Enumerate all combinations(1:n,3) triangles via nested loops over strictly increasing index triples
     # (i < j < l), storing results in pre-allocated C and ℳ indexed by the flat counter k.
     k = 0
-    for i in 1:n
-        yi, xi = ys[i], xs[i]
-        for j in i+1:n
-            yj, xj = ys[j], xs[j]
-            lab = dist2d((yi, xi), (yj, xj))
+    for i in 1:n-2
+        xi, yi = xs[i], ys[i]
+        for j in i+1:n-1
+            xj, yj = xs[j], ys[j]
+            dx_ji, dy_ji = xj - xi, yj - yi
+            d2_ji = dx_ji^2 + dy_ji^2  # squared distance between sources i and j
             for l in j+1:n
                 k += 1
-                yl, xl = ys[l], xs[l]
-                lbc = dist2d((yj, xj), (yl, xl))
-                lac = dist2d((yi, xi), (yl, xl))
-                small, mid, large = sort3(lab, lbc, lac)
-                ℳ[1, k] = large / mid
-                ℳ[2, k] = mid / small
-                C[k] = (i, j, l)
+                xl, yl = xs[l], ys[l]
+                dx_lj, dy_lj = xl - xj, yl - yj
+                dx_li, dy_li = xl - xi, yl - yi
+                d2_lj = dx_lj^2 + dy_lj^2  # squared distance between sources j and l
+                d2_li = dx_li^2 + dy_li^2  # squared distance between sources i and l
+                
+                small2, mid2, large2 = sort3(d2_ji, d2_lj, d2_li)
+                ℳ[1, k] = sqrt(large2 / mid2)
+                ℳ[2, k] = sqrt(mid2 / small2)
+                C[k] = _canonical_vertex_order(i, j, l, d2_ji, d2_lj, d2_li, xs, ys)
             end
         end
     end
@@ -43,47 +46,47 @@ function _triangle_invariants(phot)
 end
 
 """
-    _canonical_vertex_order(pa, pb, pc)
+    _canonical_vertex_order(i, j, l, d2_ji, d2_lj, d2_li, xs, ys)
 
-Re-order the three vertices of a triangle so that:
+Re-order the three vertices of a triangle with `x` and `y` coordinates
+`x = (xs[i], xs[j], xs[l])` and `y = (ys[i], ys[j], ys[l])`
+into a canonical form so that:
 
 1. The apex (vertex opposite the longest edge) is last.
-1. The two base vertices are ordered counter-clockwise (positive cross product).
+2. The two base vertices are ordered counter-clockwise (positive cross product).
 
-This canonical form is preserved under rotation and translation, so corresponding triangles in two images receive the same vertex permutation and produce geometrically consistent point correspondences.
+This canonical form is preserved under rotation and translation, so corresponding triangles
+in two images receive the same vertex permutation and produce geometrically consistent point
+correspondences.
+
+The squared edge lengths `d2_ji`, `d2_lj`, `d2_li` are accepted as arguments rather than
+recomputed, since they are already available at the call site in [`_triangle_invariants`](@ref).
 """
-function _canonical_vertex_order(pa, pb, pc)
-    xa, ya = pa.xcenter, pa.ycenter
-    xb, yb = pb.xcenter, pb.ycenter
-    xc, yc = pc.xcenter, pc.ycenter
-
-    d2_ab = (xb - xa)^2 + (yb - ya)^2
-    d2_bc = (xc - xb)^2 + (yc - yb)^2
-    d2_ac = (xc - xa)^2 + (yc - ya)^2
-
-    # Identify the two base vertices (endpoints of longest edge) and the apex
-    if d2_ab >= d2_bc && d2_ab >= d2_ac
-        v1, v2, apex = pa, pb, pc
-    elseif d2_bc >= d2_ab && d2_bc >= d2_ac
-        v1, v2, apex = pb, pc, pa
+@inline function _canonical_vertex_order(i, j, l, d2_ji, d2_lj, d2_li, xs, ys)
+    # Identify apex (vertex opposite the longest edge) and base vertices
+    if d2_ji >= d2_lj && d2_ji >= d2_li
+        v1, v2, apex = i, j, l   # longest edge is i-j, apex is l
+    elseif d2_lj >= d2_ji && d2_lj >= d2_li
+        v1, v2, apex = j, l, i   # longest edge is j-l, apex is i
     else
-        v1, v2, apex = pa, pc, pb
+        v1, v2, apex = i, l, j   # longest edge is i-l, apex is j
     end
 
-    # Enforce CCW winding so that a rotation does not change the order
-    cross = (v2.xcenter - v1.xcenter) * (apex.ycenter - v1.ycenter) -
-            (v2.ycenter - v1.ycenter) * (apex.xcenter - v1.xcenter)
+    # Enforce CCW winding: swap base vertices if cross product is negative
+    cross = (xs[v2] - xs[v1]) * (ys[apex] - ys[v1]) - (ys[v2] - ys[v1]) * (xs[apex] - xs[v1])
     cross < 0 && ((v1, v2) = (v2, v1))
 
     return (v1, v2, apex)
 end
 
 """
-    _build_correspondences(C_from, ℳ_from, C_to, ℳ_to)
+    _build_correspondences(C_from, ℳ_from, phot_from, C_to, ℳ_to, phot_to)
 
 Build a `2 × 3 × 2 × N` array of candidate triangle-level correspondences
 between the `from` and `to` frames. The `C` and `ℳ` are the combinations of three
-points and their invariants as returned by [`Astroalign._triangle_invariants`](@ref).
+points and their invariants as returned by [`_triangle_invariants`](@ref), which
+guarantees that both `C_from` and `C_to` are already in canonical vertex order
+(base vertices CCW, apex last).
 
 The axes are `[coord, vertex, frame, match]`:
 
@@ -94,30 +97,38 @@ The axes are `[coord, vertex, frame, match]`:
 
 So `out[:, v, 1, n]` is the `(x, y)` position of vertex `v` in the `from`
 frame for match `n`, and `out[:, v, 2, n]` is the corresponding position in
-the `to` frame. Vertices are ordered canonically via
-[`_canonical_vertex_order`](@ref), so corresponding triangles receive the
-same geometric vertex assignment.
+the `to` frame. Because both frames share the same canonical vertex ordering,
+corresponding vertices across frames are geometrically consistent and suitable
+for direct use in transform estimation.
 """
-function _build_correspondences(C_from, ℳ_from, C_to, ℳ_to)
-    C_from_list = collect(C_from)
-    C_to_list   = collect(C_to)
+function _build_correspondences(C_from, ℳ_from, phot_from, C_to, ℳ_to, phot_to)
+    (isempty(C_from) || isempty(C_to)) && return zeros(2, 3, 2, 0)
 
-    (isempty(C_from_list) || isempty(C_to_list)) && return zeros(2, 3, 2, 0)
-
-    # Get most similar triangle in to-frame for each from-frame triangle, using the invariants as features
+    # Find the most similar to-frame triangle for each from-frame triangle
+    # using the invariants as KD-tree features
     idxs, _ = nn(KDTree(ℳ_to), ℳ_from)
 
-    out = Array{Float64}(undef, 2, 3, 2, length(C_from_list))
+    out = Array{Float64}(undef, 2, 3, 2, length(C_from))
+    xs_from, ys_from = phot_from.xcenter, phot_from.ycenter
+    xs_to, ys_to = phot_to.xcenter, phot_to.ycenter
 
-    for i in eachindex(C_from_list)
-        canon_from = _canonical_vertex_order(C_from_list[i]...)
-        canon_to = _canonical_vertex_order(C_to_list[idxs[i]]...)
-        for v in 1:3
-            out[1, v, 1, i] = canon_from[v].xcenter
-            out[2, v, 1, i] = canon_from[v].ycenter
-            out[1, v, 2, i] = canon_to[v].xcenter
-            out[2, v, 2, i] = canon_to[v].ycenter
-        end
+    for i in eachindex(C_from)
+        # Both C_from and C_to are already in canonical vertex order from _triangle_invariants
+        v1, v2, apex = C_from[i]
+        out[1, 1, 1, i] = xs_from[v1]
+        out[2, 1, 1, i] = ys_from[v1]
+        out[1, 2, 1, i] = xs_from[v2]
+        out[2, 2, 1, i] = ys_from[v2]
+        out[1, 3, 1, i] = xs_from[apex]
+        out[2, 3, 1, i] = ys_from[apex]
+
+        w1, w2, wapex = C_to[idxs[i]]
+        out[1, 1, 2, i] = xs_to[w1]
+        out[2, 1, 2, i] = ys_to[w1]
+        out[1, 2, 2, i] = xs_to[w2]
+        out[2, 2, 2, i] = ys_to[w2]
+        out[1, 3, 2, i] = xs_to[wapex]
+        out[2, 3, 2, i] = ys_to[wapex]
     end
 
     return out
