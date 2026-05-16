@@ -104,18 +104,19 @@ for direct use in transform estimation.
 function _build_correspondences(C_from, ℳ_from, phot_from, C_to, ℳ_to, phot_to)
     (isempty(C_from) || isempty(C_to)) && return zeros(2, 3, 2, 0)
 
-    # Find the most similar to-frame triangle for each from-frame triangle
-    # using the invariants as KD-tree features
-    idxs, _ = nn(KDTree(ℳ_to), ℳ_from)
+    # Build the KD-tree once; query per-triangle inside the loop to avoid
+    # materialising the full idxs vector
+    tree = KDTree(ℳ_to)
 
     out = Array{Float64}(undef, 2, 3, 2, length(C_from))
     xs_from, ys_from = phot_from.xcenter, phot_from.ycenter
     xs_to, ys_to = phot_to.xcenter, phot_to.ycenter
 
     for i in eachindex(C_from)
-        # Both C_from and C_to are already in canonical vertex order from _triangle_invariants
+        # Find nearest neighbor of ℳ_from[:, i] in ℳ_to, returning the index of the corresponding triangle in the to-frame
+        idx, _ = nn(tree, view(ℳ_from, :, i))
         C_from_i = C_from[i]
-        C_to_i = C_to[idxs[i]]
+        C_to_i = C_to[idx]
         for v in 1:3
             out[1, v, 1, i] = xs_from[C_from_i[v]]
             out[2, v, 1, i] = ys_from[C_from_i[v]]
