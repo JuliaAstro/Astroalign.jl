@@ -8,8 +8,6 @@ SUITE["core"] = BenchmarkGroup()
 SUITE["core"]["_triangle_invariants"] = @benchmarkable _triangle_invariants(phot) setup=(phot = Table(xcenter = rand(Float64, 100), ycenter = rand(Float64, 100)))
 
 
-# run(SUITE)
-
 # If not on CI, we'll show a nice table
 if get(ENV, "CI", "false") == "false"
 
