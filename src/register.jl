@@ -114,21 +114,14 @@ function _build_correspondences(C_from, ℳ_from, phot_from, C_to, ℳ_to, phot_
 
     for i in eachindex(C_from)
         # Both C_from and C_to are already in canonical vertex order from _triangle_invariants
-        v1, v2, apex = C_from[i]
-        out[1, 1, 1, i] = xs_from[v1]
-        out[2, 1, 1, i] = ys_from[v1]
-        out[1, 2, 1, i] = xs_from[v2]
-        out[2, 2, 1, i] = ys_from[v2]
-        out[1, 3, 1, i] = xs_from[apex]
-        out[2, 3, 1, i] = ys_from[apex]
-
-        w1, w2, wapex = C_to[idxs[i]]
-        out[1, 1, 2, i] = xs_to[w1]
-        out[2, 1, 2, i] = ys_to[w1]
-        out[1, 2, 2, i] = xs_to[w2]
-        out[2, 2, 2, i] = ys_to[w2]
-        out[1, 3, 2, i] = xs_to[wapex]
-        out[2, 3, 2, i] = ys_to[wapex]
+        C_from_i = C_from[i]
+        C_to_i = C_to[idxs[i]]
+        for v in 1:3
+            out[1, v, 1, i] = xs_from[C_from_i[v]]
+            out[2, v, 1, i] = ys_from[C_from_i[v]]
+            out[1, v, 2, i] = xs_to[C_to_i[v]]
+            out[2, v, 2, i] = ys_to[C_to_i[v]]
+        end
     end
 
     return out
