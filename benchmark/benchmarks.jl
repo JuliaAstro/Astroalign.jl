@@ -7,7 +7,7 @@ const SUITE = BenchmarkGroup()
 SUITE["core"] = BenchmarkGroup()
 
 SUITE["core"]["_triangle_invariants"] = @benchmarkable _triangle_invariants(phot) setup=(phot = Table(xcenter = rand(Float64, 100), ycenter = rand(Float64, 100)))
-SUITE["core"]["_build_correspondences"] = @benchmarkable _build_correspondences(C_from, ℳ_from, C_to, ℳ_to) setup=begin
+SUITE["core"]["_build_correspondences"] = @benchmarkable _build_correspondences(C_from, ℳ_from, phot_from, C_to, ℳ_to, phot_to) setup=begin
     phot = Table(xcenter = rand(Float64, 100), ycenter = rand(Float64, 100))
     C_from, ℳ_from = _triangle_invariants(phot)
     C_to, ℳ_to = _triangle_invariants(phot)
@@ -15,9 +15,8 @@ SUITE["core"]["_build_correspondences"] = @benchmarkable _build_correspondences(
     phot_to = phot
 end
 
-# Only when run directly as a script (not when `include`d by AirspeedVelocity,
-# which defines and runs `SUITE` itself) do we run the suite and show a table.
-if abspath(PROGRAM_FILE) == @__FILE__
+# If not on CI, we'll show a nice table
+if get(ENV, "CI", "false") == "false"
     # Run the benchmarks
     results = run(SUITE, verbose=true)
 
