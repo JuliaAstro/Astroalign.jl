@@ -15,9 +15,8 @@ SUITE["core"]["_build_correspondences"] = @benchmarkable _build_correspondences(
     phot_to = phot
 end
 
-# Only when run directly as a script (not when `include`d by AirspeedVelocity,
-# which defines and runs `SUITE` itself) do we run the suite and show a table.
-if abspath(PROGRAM_FILE) == @__FILE__
+# If not on CI, we'll show a nice table
+if get(ENV, "CI", "false") == "false"
     # Run the benchmarks
     results = run(SUITE, verbose=true)
 
