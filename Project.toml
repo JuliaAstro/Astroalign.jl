@@ -18,7 +18,7 @@ TypedTables = "9d95f2ec-7b3d-5a63-8d20-e2491e220bb9"
 ConsensusFitting = {rev = "main", url = "https://github.com/JuliaAstro/ConsensusFitting.jl"}
 
 [compat]
-ConsensusFitting = "0.1"
+ConsensusFitting = "1"
 CoordinateTransformations = "0.6"
 ImageTransformations = "0.10"
 NearestNeighbors = "0.4"
