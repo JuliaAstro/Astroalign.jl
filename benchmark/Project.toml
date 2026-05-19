@@ -12,6 +12,6 @@ ConsensusFitting = {rev = "main", url = "https://github.com/JuliaAstro/Consensus
 
 [compat]
 BenchmarkTools = "1"
-ConsensusFitting = "0.1"
+ConsensusFitting = "1"
 PrettyTables = "3"
 TypedTables = "1.4.6"
