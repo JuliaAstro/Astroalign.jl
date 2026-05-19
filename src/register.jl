@@ -34,9 +34,9 @@ function _triangle_invariants(phot)
                 d2_lj = dx_lj^2 + dy_lj^2  # squared distance between sources j and l
                 d2_li = dx_li^2 + dy_li^2  # squared distance between sources i and l
                 
-                small2, mid2, large2 = sort3(d2_ji, d2_lj, d2_li)
-                ℳ[1, k] = sqrt(large2 / mid2)
-                ℳ[2, k] = sqrt(mid2 / small2)
+                L1, L2, L3 = sort3(d2_ji, d2_lj, d2_li)
+                ℳ[1, k] = sqrt(L3 / L2)
+                ℳ[2, k] = sqrt(L2 / L1)
                 C[k] = _canonical_vertex_order(i, j, l, d2_ji, d2_lj, d2_li, xs, ys)
             end
         end
@@ -45,7 +45,7 @@ function _triangle_invariants(phot)
     return C, ℳ
 end
 
-"""
+@doc raw"""
     _canonical_vertex_order(i, j, l, d2_ji, d2_lj, d2_li, xs, ys)
 
 Re-order the three vertices of a triangle with `x` and `y` coordinates
@@ -59,24 +59,83 @@ This canonical form is preserved under rotation and translation, so correspondin
 in two images receive the same vertex permutation and produce geometrically consistent point
 correspondences.
 
+# Examples
+
+Consider the triangle with vertices
+
+```text
+        (1) = (0,4)
+         |\
+         | \
+       4 |  \ 5
+         |   \
+         |    \
+(0,0) = (2)----(3) = (3,0)
+            3
+```
+
+The longest edge is (1)-(3), so the apex is vertex (2).
+The initial canonical ordering is therefore (1,3,2).
+
+However, this ordering is clockwise in image coordinates, so the
+base vertices are swapped to enforce counter-clockwise winding,
+yielding the final canonical ordering (3,1,2) for these vertices.
+
+```jldoctest
+julia> using Astroalign: _canonical_vertex_order
+
+julia> i, x_i, y_i = 1, 0.0, 4.0;
+
+julia> j, x_j, y_j = 2, 0.0, 0.0;
+
+julia> l, x_l, y_l = 3, 3.0, 0.0;
+
+julia> d2_ji = (x_j - x_i)^2 + (y_j - y_i)^2
+16.0
+
+julia> d2_lj = (x_l - x_j)^2 + (y_l - y_j)^2
+9.0
+
+julia> d2_li = (x_l - x_i)^2 + (y_l - y_i)^2
+25.0
+
+julia> _canonical_vertex_order(i, j, l, d2_ji, d2_lj, d2_li, [x_i, x_j, x_l], [y_i, y_j, y_l])
+(3, 1, 2)
+```
+
+# Notes 
+
 The squared edge lengths `d2_ji`, `d2_lj`, `d2_li` are accepted as arguments rather than
 recomputed, since they are already available at the call site in [`_triangle_invariants`](@ref).
 """
 @inline function _canonical_vertex_order(i, j, l, d2_ji, d2_lj, d2_li, xs, ys)
-    # Identify apex (vertex opposite the longest edge) and base vertices
-    if d2_ji >= d2_lj && d2_ji >= d2_li
-        v1, v2, apex = i, j, l   # longest edge is i-j, apex is l
-    elseif d2_lj >= d2_ji && d2_lj >= d2_li
-        v1, v2, apex = j, l, i   # longest edge is j-l, apex is i
-    else
-        v1, v2, apex = i, l, j   # longest edge is i-l, apex is j
-    end
+    # There are three possible longest edges:
+    #   1. ji is longest  (c1 == true)
+    #   2. lj is longest  (c2 == true)
+    #   3. li is longest  (neither c1 nor c2)
+    ji_longest = (d2_ji >= d2_lj) & (d2_ji >= d2_li)
+    lj_longest = (d2_lj >= d2_ji) & (d2_lj >= d2_li)
+
+    # The nested ifelse expressions are equivalent to:
+    #
+    #   if c1
+    #       v1, v2, apex = i, j, l
+    #   elseif c2
+    #       v1, v2, apex = j, l, i
+    #   else
+    #       v1, v2, apex = i, l, j
+    #   end
+    # Using ifelse keeps this branchless
+    v1 = ifelse(ji_longest, i, ifelse(lj_longest, j, i)) 
+    v2 = ifelse(ji_longest, j, ifelse(lj_longest, l, l))
+    apex = ifelse(ji_longest, l, ifelse(lj_longest, i, j))
 
     # Enforce CCW winding: swap base vertices if cross product is negative
-    cross = (xs[v2] - xs[v1]) * (ys[apex] - ys[v1]) - (ys[v2] - ys[v1]) * (xs[apex] - xs[v1])
-    cross < 0 && ((v1, v2) = (v2, v1))
-
-    return (v1, v2, apex)
+    @inbounds cross = (xs[v2] - xs[v1]) * (ys[apex] - ys[v1]) - (ys[v2] - ys[v1]) * (xs[apex] - xs[v1])
+    swap = cross < 0
+    vv1 = ifelse(swap, v2, v1)
+    vv2 = ifelse(swap, v1, v2)
+    return vv1, vv2, apex
 end
 
 """
