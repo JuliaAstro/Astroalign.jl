@@ -16,7 +16,7 @@ using Photometry:
     PeakMesh
 using TypedTables: Table
 
-export align_frame, find_transform
+export align_frames, find_transform, apply_transform
 
 include("psf.jl")
 include("findpeaks.jl")

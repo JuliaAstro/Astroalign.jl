@@ -27,22 +27,86 @@ end
     @test errs == zero(subt)
 end
 
-@testset "align_frame" begin
-    using Astroalign: align_frame
+@testset "align_frames" begin
+    using Astroalign: align_frames
 
     img_to = Data.img_to
     img_from = Data.img_from
 
-    img_aligned, params = align_frame(img_from, img_to; box_size = 1, ap_radius = 1, min_fwhm = (0.1, 0.1))
+    img_aligned = align_frames(img_from, img_to; box_size = 1, ap_radius = 1, min_fwhm = (0.1, 0.1))
 
     @test img_aligned ≈ img_to
+end
+
+@testset "align_frames (vector input reuses phot_to)" begin
+    using Astroalign: align_frames
+
+    img_to = Data.img_to
+    img_from = Data.img_from
+    opts = (; box_size = 1, ap_radius = 1, min_fwhm = (0.1, 0.1))
+
+    expected = align_frames(img_from, img_to; opts...)
+    aligned = align_frames([img_from, img_from, img_from], img_to; opts...)
+
+    @test length(aligned) == 3
+    @test all(a -> a ≈ expected, aligned)
+    @test all(a -> a ≈ img_to, aligned)
+end
+
+@testset "align_frames (single-arg convenience: first is reference)" begin
+    using Astroalign: align_frames
+
+    img_to = Data.img_to
+    img_from = Data.img_from
+    opts = (; box_size = 1, ap_radius = 1, min_fwhm = (0.1, 0.1))
+
+    expected = align_frames([img_from, img_from], img_to; opts...)
+    aligned = align_frames([img_to, img_from, img_from]; opts...)
+
+    @test length(aligned) == 2
+    @test aligned[1] ≈ expected[1]
+    @test aligned[2] ≈ expected[2]
+end
+
+@testset "find_transform" begin
+    using Astroalign: find_transform
+
+    img_to = Data.img_to
+    img_from = [(9, 9), (5, 6), (9, 6)]
+
+    tfm, params = find_transform(img_from, img_to; box_size = 1, ap_radius = 1, min_fwhm = (0.1, 0.1))
+
     @test params.point_map == [
         [9.0, 9.0] => [6.0, 9.0],
         [5.0, 6.0] => [2.0, 6.0],
         [9.0, 6.0] => [6.0, 6.0]
     ]
-    @test params.tfm.linear ≈ [1 0; 0 1]
-    @test params.tfm.translation ≈ [-3.0, 0.0]
+    @test tfm.linear ≈ [1 0; 0 1]
+    @test tfm.translation ≈ [-3.0, 0.0]
+end
+
+@testset "find_transform reuses precomputed phot" begin
+    using Astroalign: find_transform
+
+    img_to = Data.img_to
+    img_from = Data.img_from
+    opts = (; box_size = 1, ap_radius = 1, min_fwhm = (0.1, 0.1))
+
+    tfm_ref, params_ref = find_transform(img_from, img_to; opts...)
+
+    # Passing the precomputed phot_to Table in place of img_to must yield the
+    # same transform without rerunning photometry on img_to.
+    tfm_reuse, params_reuse = find_transform(img_from, params_ref.phot_to; opts...)
+    @test tfm_reuse.linear ≈ tfm_ref.linear
+    @test tfm_reuse.translation ≈ tfm_ref.translation
+    @test params_reuse.phot_to === params_ref.phot_to
+    @test params_reuse.phot_to_params == ()
+
+    # Symmetric: precomputed phot_from also works.
+    tfm_both, params_both = find_transform(params_ref.phot_from, params_ref.phot_to; opts...)
+    @test tfm_both.linear ≈ tfm_ref.linear
+    @test tfm_both.translation ≈ tfm_ref.translation
+    @test params_both.phot_from_params == ()
 end
 
 @testset "photometry" begin
@@ -76,21 +140,21 @@ end
 end
 
 @testset "api"  begin
-    import Astroalign
+    using Astroalign: PSF, find_transform, apply_transform
 
     img_to = Data.img_to
     img_from = Data.img_from
 
-    img_aligned, p = Astroalign.align_frame(img_to, img_from;
+    tfm, p = find_transform(img_to, img_from;
         box_size = 1,
         ap_radius = 1,
         min_fwhm = 0.1,
-        f = Astroalign.PSF(params = (x = 6, y = 6, fwhm = 0.2))
+        f = PSF(params = (x = 6, y = 6, fwhm = 0.2))
     )
+    img_aligned = apply_transform(tfm, img_from, img_to)
 
     @test img_aligned isa AbstractMatrix
     @test propertynames(p) == (
-        :tfm,
         :point_map,
         :correspondences,
         :inlier_idxs,
@@ -98,6 +162,8 @@ end
         :ℳ_from,
         :C_to,
         :ℳ_to,
+        :phot_from,
+        :phot_to,
         :phot_from_params,
         :phot_to_params,
     )

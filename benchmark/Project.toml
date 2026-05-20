@@ -1,0 +1,17 @@
+[deps]
+Astroalign = "7f4629bd-323a-4fad-ad42-4ee56350f27f"
+BenchmarkTools = "6e4b80f9-dd63-53aa-95a3-0cdb28fa8baf"
+ConsensusFitting = "463569c3-d6e9-43b4-bb3a-bd02a13deb89"
+PrettyTables = "08abe8d2-0d0c-5749-adfa-8a2ac140af0d"
+TypedTables = "9d95f2ec-7b3d-5a63-8d20-e2491e220bb9"
+
+# TODO: Remove when ConsensusFitting.jl is registered
+# https://github.com/JuliaImages/ConsensusFitting.jl/issues/8
+[sources]
+ConsensusFitting = {rev = "main", url = "https://github.com/JuliaAstro/ConsensusFitting.jl"}
+
+[compat]
+BenchmarkTools = "1"
+ConsensusFitting = "1"
+PrettyTables = "3"
+TypedTables = "1.4.6"
