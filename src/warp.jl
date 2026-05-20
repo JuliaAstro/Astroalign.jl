@@ -147,7 +147,7 @@ If `img_from` or `img_to` is instead passed as a vector of `(x, y)` coordinates 
 function find_transform(img_from, img_to;
     box_size = (3, 3),
     ap_radius = 9,
-    f = PSF(),
+    f = com_psf,
     min_fwhm = 2.0,
     nsigma = 1,
     N_max = 10,
