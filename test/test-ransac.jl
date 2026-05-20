@@ -11,7 +11,7 @@ function render_stars(positions_rc_amp, img_size, fwhm)
         r0, c0 = round(Int, r), round(Int, c)
         for ir in max(1, r0 - fwhm_int):min(img_size[1], r0 + fwhm_int),
                 ic in max(1, c0 - fwhm_int):min(img_size[2], c0 + fwhm_int)
-            # PSFModels convention: first arg → row coord (x), second → col (y)
+            # Pixel convention: first arg → row coord (x), second → col (y)
             img[ir, ic] += gaussian(Float32(ir), Float32(ic);
                 x = Float32(r), y = Float32(c),
                 fwhm = Float32(fwhm), amp = Float32(amp))
@@ -81,7 +81,6 @@ end
 
 @testset "rigid alignment on synthetic images" begin
     # All coordinates are in Astroalign's native (xcenter=row, ycenter=col) convention.
-    # Stars are rendered with PSFModels.gaussian(row_eval, col_eval; x=row_star, y=col_star).
     # The forward transform T_fwd maps img_to star (row, col) positions to img_from positions.
     # find_transform recovers this as tfm (backward: img_to → img_from), so:
     #   tfm.linear     ≈ R_fwd
