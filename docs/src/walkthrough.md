@@ -51,7 +51,6 @@ set_cmap!(:cividis)
 
 # Simulated star fields
 using Random: Xoshiro
-using PSFModels: gaussian
 using LinearAlgebra: I, norm
 using Rotations: RotMatrix2
 using CoordinateTransformations: LinearMap, Translation
@@ -63,8 +62,12 @@ using ImageTransformations: Periodic, warp
 We'll start by creating a simulated star field to align on. For simplicity, we'll just create 12 Gaussian point sources placed randomly in a 300 x 300 grid with some noise over the whole image:
 
 ```@example walkthrough
-# Modified from
-# https://github.com/JuliaAstro/PSFModels.jl/blob/main/test/fitting.jl
+function gaussian(idx::CartesianIndex; x, y, fwhm, amp)
+    σ = fwhm / (2 * sqrt(2 * log(2)))
+    r, c = Tuple(idx)
+    return amp * exp(-((r - x)^2 + (c - y)^2) / (2 * σ^2))
+end
+
 function generate_model(rng, model, params, inds)
     cartinds = CartesianIndices(inds)
     psf = model.(cartinds; params..., amp = 30_000)
@@ -163,7 +166,7 @@ opts_phot = (;
     ap_radius = 18.6,
     min_fwhm = (3, 3),
     nsigma = 1,
-    f = Astroalign.PSF(params = (fwhm = (6, 6),)),
+    f = Astroalign.com_psf,
     N_max = 10,
     use_fitpos = true,
 );
@@ -252,41 +255,43 @@ fig
 
 ### Source extraction
 
-`astroalign.py` uses [`sep`](https://github.com/quatrope/astroalign/blob/d7463b4ca48fc35f3d86a72343015491cdf20d6a/astroalign.py#L537) under the hood for its source extraction. We use [`Photometry.Detection.extract_sources`](@extref) to pull out the regions around the brightest pixels and [`PSFModels.fit`](@extref) to fit PSF models to each detected source, allowing us to pick out the ones that look like stars (vs. hot pixels, artifacts, etc.). This process is executed by [`Astroalign._get_sources`](@ref).
+`astroalign.py` uses [`sep`](https://github.com/quatrope/astroalign/blob/d7463b4ca48fc35f3d86a72343015491cdf20d6a/astroalign.py#L537) under the hood for its source extraction. We use [`Photometry.Detection.extract_sources`](@extref) to pull out the regions around the brightest pixels. A FWHM estimate is then computed for each detected source (see the next section) so the brightest, well-resolved sources can be selected as control points and noise-like detections (hot pixels, artifacts, etc.) can be filtered out via `min_fwhm`. Source extraction is executed by [`Astroalign._get_sources`](@ref).
 
 In the future, additional photometry options may be added.
 
 ### Source characterization
 
-[`Photometry.Aperture.photometry`](@extref) automatically computes aperture sums and returns them in a nice table for us. We also pass a function, `Astroalign.PSF`, to compute some PSF statistics for each source and stores them in the table as well.
+[`Photometry.Aperture.photometry`](@extref) automatically computes aperture sums and returns them in a nice table for us. We also pass a function, [`Astroalign.com_psf`](@ref), to compute PSF statistics for each source from a fast, non-iterative center-of-mass estimate, and store them in the table as well.
 
-!!! note
-    Some PSF model fits may not converge for especially noisy data. Data cleaning / pre-procesing is outside the scope of this package.
+In addition to the usual photometry fields returned, the `aperture_f` field contains a named tuple of PSF information computed by default with [`Astroalign.com_psf`](@ref):
 
-In addition to the usual photometry fields returned, the `aperture_f` field contains a named tuple of PSF information computed by default with the [`Astroalign.PSF()`](@ref) callable:
+- `psf_params`: Named tuple of `x` and `y` center (relative to the aperture) and per-axis `fwhm` of the source.
+- `psf_model`: A tag indicating which characterization method was used (`"com"` for center-of-mass).
+- `psf_data`: The underlying array of the data within the aperture being characterized.
 
-- `psf_params`: Named tuple of `x` and `y` center, and `fwhm` of fitted PSF relative to its aperture.
-- `psf_model`: The best fit PSF model. Uses a [`PSFModels.gaussian`](@extref) by default.
-- `psf_data`: The underlying intersection array of the data within the aperture being fit.
+A different characterization function can be supplied via the `f` keyword of [`find_transform`](@ref) — any callable that takes an aperture cutout and returns a named tuple with the fields above will work.
 
-The same parameters passed to [`PSFModels.fit`](@extref) can also be passed to [`Astroalign.PSF()`](@ref).
-
-Below is a quick visual check comparing an observed point source with its fitted PSF model:
+Below is a quick visual check of an observed point source and its center-of-mass fit:
 
 ```@example walkthrough
 function inspect_psf(phot; kwargs...)
-    psf_data, psf_model = phot.aperture_f.psf_data, phot.aperture_f.psf_model
+    psf_data = phot.aperture_f.psf_data
+    (; x, y, fwhm) = phot.aperture_f.psf_params
 
     println((; phot.xcenter, phot.ycenter))
     println(phot.aperture_f.psf_params)
 
+    σx, σy = fwhm ./ (2 * sqrt(2 * log(2)))
+    model = [exp(-((r - x)^2 / (2σx^2) + (c - y)^2 / (2σy^2)))
+             for r in axes(psf_data, 1), c in axes(psf_data, 2)]
+
     obs = AstroImage(psf_data)
-    psf = AstroImage(psf_model.(CartesianIndices(psf_data)))
+    psf = AstroImage(model)
 
     plot_pair(obs, psf; kwargs...)
 end
 
-inspect_psf(first(phot_to); colorrange = (0, 1), titles = ["Data", "Model"])
+inspect_psf(first(phot_from); colorrange = (0, 1), titles = ["Data", "Model"])
 ```
 
 !!! note
