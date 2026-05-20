@@ -33,7 +33,7 @@ end
     img_to = Data.img_to
     img_from = Data.img_from
 
-    img_aligned = align_frames(img_from, img_to; box_size = 1, ap_radius = 1, min_fwhm = (0.1, 0.1))
+    img_aligned = align_frames(img_from, img_to; use_fitpos = false)
 
     @test img_aligned ≈ img_to
 end
@@ -43,7 +43,7 @@ end
 
     img_to = Data.img_to
     img_from = Data.img_from
-    opts = (; box_size = 1, ap_radius = 1, min_fwhm = (0.1, 0.1))
+    opts = (; use_fitpos = false)
 
     expected = align_frames(img_from, img_to; opts...)
     aligned = align_frames([img_from, img_from, img_from], img_to; opts...)
@@ -58,7 +58,7 @@ end
 
     img_to = Data.img_to
     img_from = Data.img_from
-    opts = (; box_size = 1, ap_radius = 1, min_fwhm = (0.1, 0.1))
+    opts = (; use_fitpos = false)
 
     expected = align_frames([img_from, img_from], img_to; opts...)
     aligned = align_frames([img_to, img_from, img_from]; opts...)
@@ -73,8 +73,9 @@ end
 
     img_to = Data.img_to
     img_from = [(9, 9), (5, 6), (9, 6)]
+    opts = (; use_fitpos = false)
 
-    tfm, params = find_transform(img_from, img_to; box_size = 1, ap_radius = 1, min_fwhm = (0.1, 0.1))
+    tfm, params = find_transform(img_from, img_to; opts...)
 
     @test params.point_map == [
         [9.0, 9.0] => [6.0, 9.0],
@@ -90,7 +91,7 @@ end
 
     img_to = Data.img_to
     img_from = Data.img_from
-    opts = (; box_size = 1, ap_radius = 1, min_fwhm = (0.1, 0.1))
+    opts = (; use_fitpos = false)
 
     tfm_ref, params_ref = find_transform(img_from, img_to; opts...)
 
