@@ -291,7 +291,7 @@ function inspect_psf(phot; kwargs...)
     plot_pair(obs, psf; kwargs...)
 end
 
-inspect_psf(first(phot_to); colorrange = (0, 1), titles = ["Data", "Model"])
+inspect_psf(first(phot_from); colorrange = (0, 1), titles = ["Data", "Model"])
 ```
 
 !!! note
