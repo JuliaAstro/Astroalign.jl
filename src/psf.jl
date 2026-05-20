@@ -3,7 +3,8 @@
 
 Determine peak parameters via a fast, non-iterative center-of-mass approach.
 """
-function com_psf(T::Type{<:AbstractFloat}, img_ap::AbstractMatrix, rel_thresh)
+function com_psf(T::Type{<:AbstractFloat}, img_ap, rel_thresh)
+    img_ap = collect(img_ap)
     rel_thresh = T(rel_thresh)
     ax, ay = axes(img_ap, 1), axes(img_ap, 2)
     peak = maximum(img_ap)
@@ -39,8 +40,6 @@ function com_psf(T::Type{<:AbstractFloat}, img_ap::AbstractMatrix, rel_thresh)
     fwhm = (sqrt(var_x) * fac, sqrt(var_y) * fac)
     return (; psf_params=(; x, y, fwhm), psf_model="com", psf_data=img_ap)
 end
-# Fallback for non-array inputs; Photometry.photometry uses Transducers.jl so we have to collect first
-com_psf(T::Type{<:AbstractFloat}, img_ap, rel_thresh) = com_psf(T, collect(img_ap), rel_thresh)
 """
    com_psf(img_ap; rel_thresh::T=0.1f0) where T <: AbstractFloat
 Forwards to `com_psf(T, img_ap, rel_thresh)` where `T` is inferred from the type of `rel_thresh`.
