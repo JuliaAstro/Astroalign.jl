@@ -1,4 +1,9 @@
 
+function gaussian(r, c; x, y, fwhm, amp)
+    σ = fwhm / (2 * sqrt(2 * log(2)))
+    return amp * exp(-((r - x)^2 + (c - y)^2) / (2 * σ^2))
+end
+
 function render_stars(positions_rc_amp, img_size, fwhm)
     img = zeros(Float32, img_size)
     fwhm_int = ceil(Int, 2.5 * fwhm)
@@ -6,7 +11,7 @@ function render_stars(positions_rc_amp, img_size, fwhm)
         r0, c0 = round(Int, r), round(Int, c)
         for ir in max(1, r0 - fwhm_int):min(img_size[1], r0 + fwhm_int),
                 ic in max(1, c0 - fwhm_int):min(img_size[2], c0 + fwhm_int)
-            # PSFModels convention: first arg → row coord (x), second → col (y)
+            # Pixel convention: first arg → row coord (x), second → col (y)
             img[ir, ic] += gaussian(Float32(ir), Float32(ic);
                 x = Float32(r), y = Float32(c),
                 fwhm = Float32(fwhm), amp = Float32(amp))
@@ -76,13 +81,11 @@ end
 
 @testset "rigid alignment on synthetic images" begin
     # All coordinates are in Astroalign's native (xcenter=row, ycenter=col) convention.
-    # Stars are rendered with PSFModels.gaussian(row_eval, col_eval; x=row_star, y=col_star).
     # The forward transform T_fwd maps img_to star (row, col) positions to img_from positions.
     # find_transform recovers this as tfm (backward: img_to → img_from), so:
     #   tfm.linear     ≈ R_fwd
     #   tfm.translation ≈ t_fwd
     using Astroalign: find_transform, apply_transform
-    using PSFModels: gaussian
     using CoordinateTransformations: AffineMap
     using LinearAlgebra: I, norm, dot
     using Random: MersenneTwister
@@ -162,7 +165,6 @@ end
 
 @testset "similarity alignment (scale=true) on synthetic images" begin
     using Astroalign: find_transform, apply_transform
-    using PSFModels: gaussian
     using CoordinateTransformations: AffineMap
     using LinearAlgebra: I, norm
     using Random: MersenneTwister
@@ -220,7 +222,6 @@ end
     # All 50 stars are place in master [820:1180, 820:1180] so they lie
     # inside both sub-images regardless of the 22° rotation.
     using Astroalign: find_transform, apply_transform
-    using PSFModels: gaussian
     using CoordinateTransformations: AffineMap, LinearMap, Translation
     using ImageTransformations: warp
     using StaticArrays: SVector
