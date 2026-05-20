@@ -111,7 +111,7 @@ end
 end
 
 @testset "photometry" begin
-    using Astroalign: _photometry, PSF
+    using Astroalign: _photometry, com_psf
 
     img_to = Data.img_to
 
@@ -120,7 +120,7 @@ end
         ap_radius = 2,
         min_fwhm = 0.1,
         nsigma = 1,
-        f = PSF(),
+        f = com_psf,
         N_max = 10,
         use_fitpos = false,
     )
@@ -132,7 +132,7 @@ end
         ap_radius = 2,
         min_fwhm = 0.1,
         nsigma = 1,
-        f = PSF(),
+        f = com_psf,
         N_max = 10,
         use_fitpos = true,
     )
@@ -141,17 +141,12 @@ end
 end
 
 @testset "api"  begin
-    using Astroalign: PSF, find_transform, apply_transform
+    using Astroalign: find_transform, apply_transform
 
     img_to = Data.img_to
     img_from = Data.img_from
 
-    tfm, p = find_transform(img_to, img_from;
-        box_size = 1,
-        ap_radius = 1,
-        min_fwhm = 0.1,
-        f = PSF(params = (x = 6, y = 6, fwhm = 0.2))
-    )
+    tfm, p = find_transform(img_to, img_from; use_fitpos = false)
     img_aligned = apply_transform(tfm, img_from, img_to)
 
     @test img_aligned isa AbstractMatrix

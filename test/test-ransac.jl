@@ -1,4 +1,9 @@
 
+function gaussian(r, c; x, y, fwhm, amp)
+    σ = fwhm / (2 * sqrt(2 * log(2)))
+    return amp * exp(-((r - x)^2 + (c - y)^2) / (2 * σ^2))
+end
+
 function render_stars(positions_rc_amp, img_size, fwhm)
     img = zeros(Float32, img_size)
     fwhm_int = ceil(Int, 2.5 * fwhm)
@@ -82,7 +87,6 @@ end
     #   tfm.linear     ≈ R_fwd
     #   tfm.translation ≈ t_fwd
     using Astroalign: find_transform, apply_transform
-    using PSFModels: gaussian
     using CoordinateTransformations: AffineMap
     using LinearAlgebra: I, norm, dot
     using Random: MersenneTwister
@@ -162,7 +166,6 @@ end
 
 @testset "similarity alignment (scale=true) on synthetic images" begin
     using Astroalign: find_transform, apply_transform
-    using PSFModels: gaussian
     using CoordinateTransformations: AffineMap
     using LinearAlgebra: I, norm
     using Random: MersenneTwister
@@ -220,7 +223,6 @@ end
     # All 50 stars are place in master [820:1180, 820:1180] so they lie
     # inside both sub-images regardless of the 22° rotation.
     using Astroalign: find_transform, apply_transform
-    using PSFModels: gaussian
     using CoordinateTransformations: AffineMap, LinearMap, Translation
     using ImageTransformations: warp
     using StaticArrays: SVector

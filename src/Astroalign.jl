@@ -6,7 +6,6 @@ using CoordinateTransformations: kabsch, AffineMap
 using Distances: euclidean
 using ImageTransformations: warp
 using NearestNeighbors: nn, KDTree
-using PSFModels: gaussian, fit
 using Photometry:
     estimate_background,
     extract_sources,
