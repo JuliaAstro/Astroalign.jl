@@ -47,11 +47,11 @@ const init_code = quote
         ),
 
         combinations_to = [
-            [(xcenter = 0, ycenter = 0), (xcenter = 0, ycenter =  4), (xcenter = 3, ycenter =  0)],
+            (1, 2, 3),
         ],
 
         combinations_from = [
-            [(xcenter = 0, ycenter = -3), (xcenter = 0, ycenter =  1), (xcenter = 3, ycenter = -3)],
+            (1, 2, 3),
         ],
 
        invariants = [

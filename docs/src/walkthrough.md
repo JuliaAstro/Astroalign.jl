@@ -345,7 +345,7 @@ end
 We next build our list of candidate correspondences in this invariant space via a nearest neighbors search:
 
 ```@example walkthrough
-correspondences = Astroalign._build_correspondences(C_from, ℳ_from, C_to, ℳ_to)
+correspondences = Astroalign._build_correspondences(C_from, ℳ_from, phot_from, C_to, ℳ_to, phot_to)
 
 println("Candidate triangle matches: $(size(correspondences, 4))")
 ```

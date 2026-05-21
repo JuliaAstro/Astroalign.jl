@@ -4,61 +4,148 @@
 Returns all combinations (``C``) of three candidate point sources from the table of sources `phot` returned by [`Photometry.Aperture.photometry`](@extref), and the computed invariant ``\\mathscr M`` for each according to Eq. 3 from [_Beroiz, M., Cabral, J. B., & Sanchez, B. (2020)_](https://ui.adsabs.harvard.edu/abs/2020A%26C....3200384B/abstract).
 """
 function _triangle_invariants(phot)
-    C = combinations(phot, 3)
-    ℳ = map(C) do (pa, pb, pc)
-        a, b, c = (
-            (pa.ycenter, pa.xcenter),
-            (pb.ycenter, pb.xcenter),
-            (pc.ycenter, pc.xcenter),
-        )
-        Ls = sort!([euclidean(a, b), euclidean(b, c), euclidean(a, c)])
-        (Ls[3] / Ls[2], Ls[2] / Ls[1])
-    end |> stack
+    @inline function sort3(a, b, c)
+        a, b = minmax(a, b)
+        b, c = minmax(b, c)
+        a, b = minmax(a, b)
+        return a, b, c  # sorted ascending: small, mid, large
+    end
+    xs = phot.xcenter
+    ys = phot.ycenter
+    n = length(phot)
+    ntriangles = binomial(n, 3)
+    ℳ = Matrix{Float64}(undef, 2, ntriangles)
+    C = Vector{NTuple{3,Int}}(undef, ntriangles)
+
+    # Enumerate all combinations(1:n,3) triangles via nested loops over strictly increasing index triples
+    # (i < j < l), storing results in pre-allocated C and ℳ indexed by the flat counter k.
+    k = 0
+    for i in 1:n-2
+        xi, yi = xs[i], ys[i]
+        for j in i+1:n-1
+            xj, yj = xs[j], ys[j]
+            dx_ji, dy_ji = xj - xi, yj - yi
+            d2_ji = dx_ji^2 + dy_ji^2  # squared distance between sources i and j
+            for l in j+1:n
+                k += 1
+                xl, yl = xs[l], ys[l]
+                dx_lj, dy_lj = xl - xj, yl - yj
+                dx_li, dy_li = xl - xi, yl - yi
+                d2_lj = dx_lj^2 + dy_lj^2  # squared distance between sources j and l
+                d2_li = dx_li^2 + dy_li^2  # squared distance between sources i and l
+
+                L1, L2, L3 = sort3(d2_ji, d2_lj, d2_li)
+                ℳ[1, k] = sqrt(L3 / L2)
+                ℳ[2, k] = sqrt(L2 / L1)
+                C[k] = _canonical_vertex_order(i, j, l, d2_ji, d2_lj, d2_li, xs, ys)
+            end
+        end
+    end
+
     return C, ℳ
 end
 
-"""
-    _canonical_vertex_order(pa, pb, pc)
+@doc raw"""
+    _canonical_vertex_order(i, j, l, d2_ji, d2_lj, d2_li, xs, ys)
 
-Re-order the three vertices of a triangle so that:
+Re-order the three vertices of a triangle with `x` and `y` coordinates
+`x = (xs[i], xs[j], xs[l])` and `y = (ys[i], ys[j], ys[l])`
+into a canonical form so that:
 
 1. The apex (vertex opposite the longest edge) is last.
-1. The two base vertices are ordered counter-clockwise (positive cross product).
+2. The two base vertices are ordered counter-clockwise (positive cross product).
 
-This canonical form is preserved under rotation and translation, so corresponding triangles in two images receive the same vertex permutation and produce geometrically consistent point correspondences.
+This canonical form is preserved under rotation and translation, so corresponding triangles
+in two images receive the same vertex permutation and produce geometrically consistent point
+correspondences.
+
+# Examples
+
+Consider the triangle with vertices
+
+```text
+        (1) = (0,4)
+         |\
+         | \
+       4 |  \ 5
+         |   \
+         |    \
+(0,0) = (2)----(3) = (3,0)
+            3
+```
+
+The longest edge is (1)-(3), so the apex is vertex (2).
+The initial canonical ordering is therefore (1,3,2).
+
+However, this ordering is clockwise in image coordinates, so the
+base vertices are swapped to enforce counter-clockwise winding,
+yielding the final canonical ordering (3,1,2) for these vertices.
+
+```jldoctest
+julia> using Astroalign: _canonical_vertex_order
+
+julia> i, x_i, y_i = 1, 0.0, 4.0;
+
+julia> j, x_j, y_j = 2, 0.0, 0.0;
+
+julia> l, x_l, y_l = 3, 3.0, 0.0;
+
+julia> d2_ji = (x_j - x_i)^2 + (y_j - y_i)^2
+16.0
+
+julia> d2_lj = (x_l - x_j)^2 + (y_l - y_j)^2
+9.0
+
+julia> d2_li = (x_l - x_i)^2 + (y_l - y_i)^2
+25.0
+
+julia> _canonical_vertex_order(i, j, l, d2_ji, d2_lj, d2_li, [x_i, x_j, x_l], [y_i, y_j, y_l])
+(3, 1, 2)
+```
+
+# Notes 
+
+The squared edge lengths `d2_ji`, `d2_lj`, `d2_li` are accepted as arguments rather than
+recomputed, since they are already available at the call site in [`_triangle_invariants`](@ref).
 """
-function _canonical_vertex_order(pa, pb, pc)
-    xa, ya = pa.xcenter, pa.ycenter
-    xb, yb = pb.xcenter, pb.ycenter
-    xc, yc = pc.xcenter, pc.ycenter
+@inline function _canonical_vertex_order(i, j, l, d2_ji, d2_lj, d2_li, xs, ys)
+    # There are three possible longest edges:
+    #   1. ji is longest  (c1 == true)
+    #   2. lj is longest  (c2 == true)
+    #   3. li is longest  (neither c1 nor c2)
+    ji_longest = (d2_ji >= d2_lj) & (d2_ji >= d2_li)
+    lj_longest = (d2_lj >= d2_ji) & (d2_lj >= d2_li)
 
-    d2_ab = (xb - xa)^2 + (yb - ya)^2
-    d2_bc = (xc - xb)^2 + (yc - yb)^2
-    d2_ac = (xc - xa)^2 + (yc - ya)^2
+    # The nested ifelse expressions are equivalent to:
+    #
+    #   if c1
+    #       v1, v2, apex = i, j, l
+    #   elseif c2
+    #       v1, v2, apex = j, l, i
+    #   else
+    #       v1, v2, apex = i, l, j
+    #   end
+    # Using ifelse keeps this branchless
+    v1 = ifelse(ji_longest, i, ifelse(lj_longest, j, i)) 
+    v2 = ifelse(ji_longest, j, ifelse(lj_longest, l, l))
+    apex = ifelse(ji_longest, l, ifelse(lj_longest, i, j))
 
-    # Identify the two base vertices (endpoints of longest edge) and the apex
-    if d2_ab >= d2_bc && d2_ab >= d2_ac
-        v1, v2, apex = pa, pb, pc
-    elseif d2_bc >= d2_ab && d2_bc >= d2_ac
-        v1, v2, apex = pb, pc, pa
-    else
-        v1, v2, apex = pa, pc, pb
-    end
-
-    # Enforce CCW winding so that a rotation does not change the order
-    cross = (v2.xcenter - v1.xcenter) * (apex.ycenter - v1.ycenter) -
-            (v2.ycenter - v1.ycenter) * (apex.xcenter - v1.xcenter)
-    cross < 0 && ((v1, v2) = (v2, v1))
-
-    return (v1, v2, apex)
+    # Enforce CCW winding: swap base vertices if cross product is negative
+    @inbounds cross = (xs[v2] - xs[v1]) * (ys[apex] - ys[v1]) - (ys[v2] - ys[v1]) * (xs[apex] - xs[v1])
+    swap = cross < 0
+    vv1 = ifelse(swap, v2, v1)
+    vv2 = ifelse(swap, v1, v2)
+    return vv1, vv2, apex
 end
 
 """
-    _build_correspondences(C_from, ℳ_from, C_to, ℳ_to)
+    _build_correspondences(C_from, ℳ_from, phot_from, C_to, ℳ_to, phot_to)
 
 Build a `2 × 3 × 2 × N` array of candidate triangle-level correspondences
 between the `from` and `to` frames. The `C` and `ℳ` are the combinations of three
-points and their invariants as returned by [`Astroalign._triangle_invariants`](@ref).
+points and their invariants as returned by [`_triangle_invariants`](@ref), which
+guarantees that both `C_from` and `C_to` are already in canonical vertex order
+(base vertices CCW, apex last).
 
 The axes are `[coord, vertex, frame, match]`:
 
@@ -69,29 +156,31 @@ The axes are `[coord, vertex, frame, match]`:
 
 So `out[:, v, 1, n]` is the `(x, y)` position of vertex `v` in the `from`
 frame for match `n`, and `out[:, v, 2, n]` is the corresponding position in
-the `to` frame. Vertices are ordered canonically via
-[`_canonical_vertex_order`](@ref), so corresponding triangles receive the
-same geometric vertex assignment.
+the `to` frame. Because both frames share the same canonical vertex ordering,
+corresponding vertices across frames are geometrically consistent and suitable
+for direct use in transform estimation.
 """
-function _build_correspondences(C_from, ℳ_from, C_to, ℳ_to)
-    C_from_list = collect(C_from)
-    C_to_list   = collect(C_to)
+function _build_correspondences(C_from, ℳ_from, phot_from, C_to, ℳ_to, phot_to)
+    (isempty(C_from) || isempty(C_to)) && return zeros(2, 3, 2, 0)
 
-    (isempty(C_from_list) || isempty(C_to_list)) && return zeros(2, 3, 2, 0)
+    # Build the KD-tree once; query per-triangle inside the loop to avoid
+    # materialising the full idxs vector
+    tree = KDTree(ℳ_to)
 
-    # Get most similar triangle in to-frame for each from-frame triangle, using the invariants as features
-    idxs, _ = nn(KDTree(ℳ_to), ℳ_from)
+    out = Array{Float64}(undef, 2, 3, 2, length(C_from))
+    xs_from, ys_from = phot_from.xcenter, phot_from.ycenter
+    xs_to, ys_to = phot_to.xcenter, phot_to.ycenter
 
-    out = Array{Float64}(undef, 2, 3, 2, length(C_from_list))
-
-    for i in eachindex(C_from_list)
-        canon_from = _canonical_vertex_order(C_from_list[i]...)
-        canon_to = _canonical_vertex_order(C_to_list[idxs[i]]...)
+    for i in eachindex(C_from)
+        # Find nearest neighbor of ℳ_from[:, i] in ℳ_to, returning the index of the corresponding triangle in the to-frame
+        idx, _ = nn(tree, view(ℳ_from, :, i))
+        C_from_i = C_from[i]
+        C_to_i = C_to[idx]
         for v in 1:3
-            out[1, v, 1, i] = canon_from[v].xcenter
-            out[2, v, 1, i] = canon_from[v].ycenter
-            out[1, v, 2, i] = canon_to[v].xcenter
-            out[2, v, 2, i] = canon_to[v].ycenter
+            out[1, v, 1, i] = xs_from[C_from_i[v]]
+            out[2, v, 1, i] = ys_from[C_from_i[v]]
+            out[1, v, 2, i] = xs_to[C_to_i[v]]
+            out[2, v, 2, i] = ys_to[C_to_i[v]]
         end
     end
 
