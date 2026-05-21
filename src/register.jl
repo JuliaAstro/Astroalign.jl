@@ -33,7 +33,7 @@ function _triangle_invariants(phot)
                 dx_li, dy_li = xl - xi, yl - yi
                 d2_lj = dx_lj^2 + dy_lj^2  # squared distance between sources j and l
                 d2_li = dx_li^2 + dy_li^2  # squared distance between sources i and l
-                
+
                 L1, L2, L3 = sort3(d2_ji, d2_lj, d2_li)
                 ℳ[1, k] = sqrt(L3 / L2)
                 ℳ[2, k] = sqrt(L2 / L1)
