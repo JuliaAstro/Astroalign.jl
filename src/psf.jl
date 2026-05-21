@@ -24,7 +24,8 @@ function com_psf(T::Type{<:AbstractFloat}, img_ap::AbstractMatrix, rel_thresh)
     @inbounds for j in ay
         col_w, col_wx, col_wx2 = zero(T), zero(T), zero(T)
         for i in ax
-            v = ifelse(img_ap[i,j] - threshold < 0, zero(T), img_ap[i,j] - threshold)
+            v = img_ap[i,j] - threshold
+            v = ifelse(v < 0, zero(T), v)
             col_w += v; col_wx += i*v; col_wx2 += i*i*v
         end
         sum_w += col_w; sum_wx += col_wx; sum_wx2 += col_wx2
