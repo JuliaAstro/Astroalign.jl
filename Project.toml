@@ -15,9 +15,6 @@ NearestNeighbors = "b8a86587-4115-5ab1-83bc-aa920d37bbce"
 Photometry = "af68cb61-81ac-52ed-8703-edc140936be4"
 TypedTables = "9d95f2ec-7b3d-5a63-8d20-e2491e220bb9"
 
-[sources]
-ConsensusFitting = {rev = "main", url = "https://github.com/JuliaAstro/ConsensusFitting.jl"}
-
 [compat]
 Combinatorics = "1"
 ConsensusFitting = "1"
