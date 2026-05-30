@@ -2,6 +2,10 @@
     com_psf(T::Type{<:AbstractFloat}, img_ap, rel_thresh)
 
 Determine peak parameters via a fast, non-iterative center-of-mass approach.
+Peak parameters are returned as a NamedTuple with fields `x`, `y`, and `fwhm`
+(a tuple of x and y FWHM). The PSF model is indicated as "com" in the returned
+NamedTuple, and the input image cutout (`img_ap`) is included in the `psf_data`
+field for reference.
 """
 function com_psf(T::Type{<:AbstractFloat}, img_ap::AbstractMatrix, rel_thresh)
     ax, ay = axes(img_ap, 1), axes(img_ap, 2)
