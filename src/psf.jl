@@ -1,5 +1,5 @@
 """
-    com_psf(T::Type{<:AbstractFloat}, img_ap, rel_thresh)
+    com_psf(T::Type{<:AbstractFloat}, img_ap::AbstractMatrix, rel_thresh)
 
 Determine peak parameters via a fast, non-iterative center-of-mass approach.
 Peak parameters are returned as a NamedTuple with fields 
