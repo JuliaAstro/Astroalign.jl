@@ -126,6 +126,20 @@ end
 @testset "photometry" begin
     using Astroalign: _photometry, com_psf
 
+    # Regression: border background should not double-count corners, and Float64
+    # image inputs should not be accumulated at the default rel_thresh precision.
+    psf = @inferred com_psf([
+        10.0 10.0 10.0
+        10.0 20.0 10.0
+        10.0 10.0 10.0
+    ]; rel_thresh=0.0f0)
+    @test psf.psf_params.x == 2.0
+    @test psf.psf_params.y == 2.0
+    @test psf.psf_params.fwhm == (0.0, 0.0)
+    @test psf.psf_params.x isa Float64
+    @test psf.psf_params.y isa Float64
+    @test psf.psf_params.fwhm isa Tuple{Float64, Float64}
+
     img_to = Data.img_to
 
     phot_to, _ = _photometry(img_to;
