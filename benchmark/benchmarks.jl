@@ -1,4 +1,4 @@
-using Astroalign: _triangle_invariants, _build_correspondences, _photometry, com_psf
+using Astroalign: _triangle_invariants, _build_correspondences, com_psf
 using BenchmarkTools
 using TypedTables: Table
 using PrettyTables: pretty_table
@@ -14,29 +14,18 @@ SUITE["core"]["_build_correspondences"] = @benchmarkable _build_correspondences(
     phot_from = phot
     phot_to = phot
 end
-SUITE["core"]["photometry_com"] = @benchmarkable _photometry(img; opts...) setup = begin
-    img = [
-        0 0 0 0 0 0 0 0 0 0 0
-        0 0 0 0 0 1 0 0 0 0 0
-        0 0 0 0 0 0 0 0 0 0 0
-        0 0 0 0 0 0 0 0 0 0 0
-        0 0 0 0 0 0 0 0 0 0 0
-        0 0 0 0 0 1 0 0 1 0 0
-        0 0 0 0 0 0 0 0 0 0 0
-        0 0 0 0 0 0 0 0 0 0 0
-        0 0 0 0 0 0 0 0 0 0 0
-        0 0 0 0 0 0 0 0 0 0 0
-        0 0 0 0 0 0 0 0 0 0 0
-    ]
-    opts = (;
-        box_size = 1,
-        ap_radius = 3,
-        min_fwhm = 0.1,
-        nsigma = 1,
-        f = com_psf,
-        N_max = 10,
-        use_fitpos = false,
-   )
+
+function gaussian(T, px, py; x, y, fwhm, amp)
+    σ = fwhm / (2 * sqrt(2 * log(2)))
+    return convert(T, amp * exp(-((px - x)^2 + (py - y)^2) / (2 * σ^2)))
+end
+model(T, x, y, amp) = gaussian(T, 4, 4; x, y, fwhm = 3, amp)
+const T = Float32
+const x = 1:20
+const y = 1:20
+SUITE["core"]["com_psf"] = @benchmarkable com_psf(data; rel_thresh) setup = begin
+    data = model.(T, x, y', 10) .+ T(0.1) * randn(T, length(x), length(y))
+    rel_thresh = 0.1f0
 end
 
 # If not on CI, we'll show a nice table
