@@ -3,9 +3,16 @@
 
 Determine peak parameters via a fast, non-iterative center-of-mass approach.
 Return quantities are typed to `promote_type(T, typeof(maximum(img_ap)))`.
-Peak parameters are returned as a NamedTuple with fields 
+
+The threshold for the center-of-mass calculation is computed as the average
+value of the border pixels (a simple background estimate) plus `rel_thresh`
+times the peak pixel value.  Pixels below this threshold are clamped to zero.
+Larger values of `rel_thresh` isolate the core of the PSF; smaller values
+include more of the wings.
+
+Peak parameters are returned as a NamedTuple with fields
  - `psf_params`: NamedTuple containing entries `x`, `y`, and `fwhm`
-   (a tuple of x and y FWHM). 
+   (a tuple of x and y FWHM).
  - `psf_model`: `"com"` to indicate center-of-mass
  - `psf_data`: the input image cutout (`img_ap`) for reference
 """
