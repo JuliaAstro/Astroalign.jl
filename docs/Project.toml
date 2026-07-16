@@ -10,4 +10,10 @@ LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 Rotations = "6038ab10-8711-5258-84ad-4b1120ba62dc"
 
 [compat]
+AstroImages = "0.5.1"
 CairoMakie = "0.15"
+CoordinateTransformations = "0.6.4"
+Documenter = "1.17.0"
+DocumenterInterLinks = "1.1.0"
+ImageTransformations = "0.10.3"
+Rotations = "1.7.1"
