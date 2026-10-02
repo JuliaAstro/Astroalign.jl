@@ -38,6 +38,11 @@ end
     @test first(Tuple(sources)) == (x = 1, y = 1, value = 1.0)
     @test subt == img
     @test errs == zero(subt)
+
+    # x/y index the first/second array axis. `box_size` does not divide the
+    # image size here, so the padded background estimate is exercised too.
+    sources, = _get_sources(Data.img_to; box_size = 3, nsigma = 1, N_max = 10)
+    @test Set(zip(sources.x, sources.y)) == Set([(2, 6), (6, 6), (6, 9)])
 end
 
 @testset "align_frames" begin

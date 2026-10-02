@@ -9,11 +9,13 @@ function _get_sources(img; box_size, nsigma, N_max)
     # Background subtract `img`
     clipped = sigma_clip(img, 1, fill = NaN)
     bkg, bkg_rms = estimate_background(clipped, box_size)
-    subt = img .- bkg[axes(img)...]
+    # `estimate_background` pads up to a multiple of `box_size`, crop back to `img`
+    bkg_img = bkg[axes(img)...]
+    subt = img .- bkg_img
 
     return (
         # Sort detected sources from brightest to darkest
-        first(extract_sources(PeakMesh(; box_size, nsigma), subt, bkg, true), N_max),
+        first(extract_sources(PeakMesh(; box_size, nsigma), subt, bkg_img; sort = true), N_max),
         # And also return the inputs, handy for debugging and data viz
         subt,
         bkg,
@@ -33,7 +35,7 @@ function _photometry(img; box_size, ap_radius, min_fwhm, nsigma, f, N_max, use_f
     sources, subt, bkg, bkg_rms = _get_sources(img; box_size, nsigma, N_max)
 
     # Define apertures
-    aps = CircularAperture.(sources.y, sources.x, ap_radius)
+    aps = CircularAperture.(sources.x, sources.y, ap_radius)
 
     # Fit using the PSF model
     phot = photometry(aps, subt; f)
