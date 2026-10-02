@@ -222,7 +222,7 @@ print_diff("Rotation", rad2deg(params_tfm.rot), rad2deg(ROT_0))
 print_diff("Translation", params_tfm.trans, TRANS_0)
 ```
 
-Taking a look at our RANSAC pass, these final transformation values were determined from 10 out of 35 detected correspondences (28.6 %).
+Taking a look at our RANSAC pass, these final transformation values were determined from the following correspondences:
 
 ```@example walkthrough
 n_inliers = length(params_aligned.inlier_idxs)
@@ -247,8 +247,8 @@ This performs source extraction and source characterization of our images, stori
 fig = plot_pair(img_from, img_to; titles = ["img_from", "img_to"])
 
 # Show apertures
-scatter!(fig.content[1], phot_from_params.sources.y, phot_from_params.sources.x)
-scatter!(fig.content[2], phot_to_params.sources.y, phot_to_params.sources.x)
+scatter!(fig.content[1], phot_from_params.sources.x, phot_from_params.sources.y)
+scatter!(fig.content[2], phot_to_params.sources.x, phot_to_params.sources.y)
 
 fig
 ```
@@ -368,11 +368,13 @@ The transformation and inlier set from the previous step are successively refine
 tfm, inlier_idxs, point_map = Astroalign._refine_transform(fwd_tfm_initial, inlier_idxs_initial, correspondences; opts_refinement...)
 ```
 
-For this example, all 10 initial inliers remain after refinement:
+We can check whether the inlier set changed during refinement:
 
-```
+```@example walkthrough
 println("Final RANSAC inliers: $(length(inlier_idxs)) / $(size(correspondences, 4))")
+```
 
+```@example walkthrough
 inlier_idxs == inlier_idxs_initial
 ```
 
